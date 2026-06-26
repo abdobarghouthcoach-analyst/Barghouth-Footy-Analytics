@@ -21,6 +21,12 @@ dev = ["pytest>=8.0,<9.0", "pytest-asyncio>=0.22,<0.25"]
 requires = ["setuptools>=65.0"]
 build-backend = "setuptools.build_meta"
 
+# Only package backend Python packages (avoid packaging frontend, alembic, etc.)
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["frontend*", "alembic*"]
+
 [tool.uv]
 project = "barghouth-footy-analytics-backend"
 dependencies = [

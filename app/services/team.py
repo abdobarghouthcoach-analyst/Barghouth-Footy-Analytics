@@ -13,11 +13,11 @@ class TeamService:
 
     async def list_teams(self) -> list[TeamResponse]:
         teams = await self.repository.list()
-        return [TeamResponse.from_orm(item) for item in teams]
+        return [TeamResponse.model_validate(item) for item in teams]
 
     async def get_team(self, team_id: UUID) -> TeamResponse | None:
         team = await self.repository.get(team_id)
-        return TeamResponse.from_orm(team) if team else None
+        return TeamResponse.model_validate(team) if team else None
 
     async def create_team(self, data: TeamCreate) -> TeamResponse:
         team = Team(
@@ -31,7 +31,7 @@ class TeamService:
             club_id=data.club_id,
         )
         team = await self.repository.create(team)
-        return TeamResponse.from_orm(team)
+        return TeamResponse.model_validate(team)
 
     async def update_team(self, team_id: UUID, data: TeamUpdate) -> TeamResponse | None:
         team = await self.repository.get(team_id)
@@ -56,7 +56,7 @@ class TeamService:
             team.club_id = data.club_id
 
         team = await self.repository.update(team)
-        return TeamResponse.from_orm(team)
+        return TeamResponse.model_validate(team)
 
     async def delete_team(self, team_id: UUID) -> bool:
         team = await self.repository.get(team_id)

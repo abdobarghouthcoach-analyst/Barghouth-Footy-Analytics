@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.match import MatchStatus
 
@@ -33,9 +33,8 @@ class MatchUpdate(BaseModel):
 
 
 class MatchResponse(MatchBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True

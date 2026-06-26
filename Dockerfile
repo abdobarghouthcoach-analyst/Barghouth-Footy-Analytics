@@ -7,9 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 RUN python -m pip install --no-cache-dir uv
 
 COPY pyproject.toml .
-RUN uv install
+# Install project in editable/system mode via uv CLI
+RUN uv pip install --system .
 
 COPY . .
 
 EXPOSE 8000
-CMD ["uv", "run", "start"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { getCompetitions, getSeasons, getTeams, createMatch, Competition, Season, Team } from '../lib/api'
+import { getCompetitions, getSeasons, getTeams, createMatch, CreateMatchPayload, Competition, Season, Team } from '../lib/api'
 
 export function CreateMatchPage() {
   const navigate = useNavigate()
@@ -36,7 +36,7 @@ export function CreateMatchPage() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    const payload = {
+    const payload: CreateMatchPayload = {
       competition_id: form.competition_id,
       season_id: form.season_id,
       home_team_id: form.home_team_id,

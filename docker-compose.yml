@@ -2,7 +2,7 @@ version: "3.9"
 services:
   backend:
     build: .
-    command: ["uv", "run", "start"]
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     depends_on:
@@ -21,5 +21,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  frontend:
+    build:
+      context: ./frontend
+    image: bfa-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000/api/v1"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/usr/src/app:rw
+      - /usr/src/app/node_modules
+    command: ["npm", "run", "dev"]
 volumes:
   postgres_data:

@@ -52,3 +52,13 @@
 - Mobile Companion
 - Cloud Sync
 - Multi Club Support
+
+## Tactical Intelligence
+
+- Tactical pattern upload
+- Pattern library
+- Pattern compliance scoring
+- Player discipline scoring
+- Shape comparison against reference model
+- Identify moments where team structure breaks
+- Link tactical errors directly to video clips

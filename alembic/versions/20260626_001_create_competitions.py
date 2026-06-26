@@ -22,8 +22,30 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("country", sa.String(length=128), nullable=False),
-        sa.Column("level", sa.String(length=64), nullable=False),
-        sa.Column("competition_type", sa.String(length=64), nullable=False),
+        sa.Column(
+            "level",
+            sa.Enum(
+                "first",
+                "second",
+                "youth",
+                name="competitionlevel",
+                native_enum=False,
+                length=64,
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "competition_type",
+            sa.Enum(
+                "league",
+                "cup",
+                "international",
+                name="competitiontype",
+                native_enum=False,
+                length=64,
+            ),
+            nullable=False,
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )

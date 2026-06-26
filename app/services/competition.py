@@ -23,8 +23,8 @@ class CompetitionService:
         competition = Competition(
             name=data.name,
             country=data.country,
-            level=data.level.value,
-            competition_type=data.competition_type.value,
+            level=data.level,
+            competition_type=data.competition_type,
         )
         competition = await self.repository.create(competition)
         return CompetitionResponse.from_orm(competition)
@@ -43,9 +43,9 @@ class CompetitionService:
         if data.country is not None:
             competition.country = data.country
         if data.level is not None:
-            competition.level = data.level.value
+            competition.level = data.level
         if data.competition_type is not None:
-            competition.competition_type = data.competition_type.value
+            competition.competition_type = data.competition_type
 
         competition = await self.repository.update(competition)
         return CompetitionResponse.from_orm(competition)

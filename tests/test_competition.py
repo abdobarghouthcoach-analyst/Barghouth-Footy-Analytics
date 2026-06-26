@@ -16,7 +16,7 @@ def competition_service() -> CompetitionService:
     return service
 
 
-def make_competition(id_value, name="Premier League", country="England", level="first", competition_type="league"):
+def make_competition(id_value, name="Premier League", country="England", level=CompetitionLevel.FIRST, competition_type=CompetitionType.LEAGUE):
     competition = Competition(
         name=name,
         country=country,
@@ -75,6 +75,8 @@ async def test_create_competition(competition_service: CompetitionService):
 
     assert result.id == competition.id
     assert result.name == "Bundesliga"
+    assert result.level == CompetitionLevel.FIRST
+    assert result.competition_type == CompetitionType.LEAGUE
 
 
 @pytest.mark.asyncio
@@ -89,6 +91,8 @@ async def test_update_competition(competition_service: CompetitionService):
     assert result is not None
     assert result.name == "Serie A"
     assert result.country == "Italy"
+    assert result.level == CompetitionLevel.FIRST
+    assert result.competition_type == CompetitionType.LEAGUE
 
 
 @pytest.mark.asyncio
@@ -98,6 +102,21 @@ async def test_delete_competition_not_found(competition_service: CompetitionServ
     result = await competition_service.delete_competition("66666666-6666-6666-6666-666666666666")
 
     assert result is False
+
+
+def test_competition_create_schema_rejects_invalid_enum():
+    with pytest.raises(ValueError):
+        CompetitionCreate(
+            name="Invalid",
+            country="Nowhere",
+            level="third",  # invalid enum value
+            competition_type=CompetitionType.LEAGUE,
+        )
+
+
+def test_competition_update_schema_rejects_invalid_enum():
+    with pytest.raises(ValueError):
+        CompetitionUpdate(level="third")
 
 
 @pytest.mark.asyncio

@@ -98,7 +98,12 @@ export function MatchWorkspacePage() {
 
         <div className="mt-6">
           {isLoading && <div className="text-muted">Loading match…</div>}
-          {!isLoading && active !== 'Timeline' && <TabContent tab={active} match={match} />}
+          {!isLoading && active !== 'Timeline' && active !== 'Import' && <TabContent tab={active} match={match} />}
+
+          {/* Import tab shell */}
+          {!isLoading && active === 'Import' && (
+            <ImportTab />
+          )}
 
           {/* Timeline tab: fetch + show events */}
           {!isLoading && active === 'Timeline' && match && (
@@ -107,6 +112,49 @@ export function MatchWorkspacePage() {
         </div>
       </div>
     </section>
+  )
+}
+
+function ImportTab() {
+  const [provider, setProvider] = useState('veo')
+  const [file, setFile] = useState<File | null>(null)
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-border p-6 bg-surface3">
+        <h3 className="text-lg font-semibold text-white">Import Match Data</h3>
+        <p className="text-muted mt-2">Import match events from video platforms or analyst files. Imported data will appear in the Timeline.</p>
+
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <label className={`p-3 rounded border ${provider === 'veo' ? 'border-accent' : 'border-border'} cursor-pointer`}>
+            <input type="radio" name="provider" value="veo" checked={provider === 'veo'} onChange={() => setProvider('veo')} className="hidden" />
+            Veo Highlights ZIP
+          </label>
+          <label className={`p-3 rounded border ${provider === 'csv' ? 'border-accent' : 'border-border'} cursor-pointer`}>
+            <input type="radio" name="provider" value="csv" checked={provider === 'csv'} onChange={() => setProvider('csv')} className="hidden" />
+            Manual CSV
+          </label>
+          <label className="p-3 rounded border border-border text-muted">Other / Coming Soon</label>
+        </div>
+
+        <div className="mt-4">
+          <input type="file" accept={provider === 'veo' ? '.zip' : '.csv'} onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="" />
+          {file && <div className="text-sm text-muted mt-2">Selected: {file.name}</div>}
+          <div className="mt-3 text-sm text-muted">No upload yet — local only. Backend upload coming later.</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded border border-border p-6 bg-surface3 text-muted">
+          <h4 className="text-white font-medium">Full Match Video</h4>
+          <p className="mt-2">Disabled — future feature</p>
+        </div>
+        <div className="rounded border border-border p-6 bg-surface3 text-muted">
+          <h4 className="text-white font-medium">Tactical Pattern Video</h4>
+          <p className="mt-2">Disabled — future feature</p>
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class TeamBase(BaseModel):
@@ -30,9 +31,8 @@ class TeamUpdate(BaseModel):
 
 
 class TeamResponse(TeamBase):
-    id: UUID
-    created_at: str
-    updated_at: str
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+    id: UUID
+    created_at: datetime
+    updated_at: datetime

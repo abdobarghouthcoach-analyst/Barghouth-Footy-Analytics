@@ -11,15 +11,16 @@ class EventService:
     def __init__(self, session: AsyncSession) -> None:
         self.repository = EventRepository(session)
 
-    async def list_events(self) -> list[EventResponse]:
-        items = await self.repository.list()
-        return [EventResponse.from_orm(i) for i in items]
+    async def list_events(self, match_id: UUID | None = None) -> list[EventResponse]:
+        items = await self.repository.list(match_id=match_id)
+        return [EventResponse.model_validate(i) for i in items]
 
     async def get_event(self, event_id: UUID) -> EventResponse | None:
         item = await self.repository.get(event_id)
-        return EventResponse.from_orm(item) if item else None
+        return EventResponse.model_validate(item) if item else None
 
-    async def create_event(self, data: EventCreate) -> EventResponse:
+    async def create_event(self, data: EventCreate | dict) -> EventResponse:
+        data = EventCreate.model_validate(data)
         event = Event(
             match_id=data.match_id,
             team_id=data.team_id,
@@ -34,12 +35,17 @@ class EventService:
             tags=data.tags,
             source_provider=data.source_provider,
             source_event_id=data.source_event_id,
+            import_job_id=data.import_job_id,
+            source=data.source,
+            provider=data.provider,
+            provider_event_id=data.provider_event_id,
             raw_payload=data.raw_payload,
         )
         event = await self.repository.create(event)
-        return EventResponse.from_orm(event)
+        return EventResponse.model_validate(event)
 
-    async def update_event(self, event_id: UUID, data: EventUpdate) -> EventResponse | None:
+    async def update_event(self, event_id: UUID, data: EventUpdate | dict) -> EventResponse | None:
+        data = EventUpdate.model_validate(data)
         item = await self.repository.get(event_id)
         if item is None:
             return None
@@ -70,11 +76,19 @@ class EventService:
             item.source_provider = data.source_provider
         if data.source_event_id is not None:
             item.source_event_id = data.source_event_id
+        if data.import_job_id is not None:
+            item.import_job_id = data.import_job_id
+        if data.source is not None:
+            item.source = data.source
+        if data.provider is not None:
+            item.provider = data.provider
+        if data.provider_event_id is not None:
+            item.provider_event_id = data.provider_event_id
         if data.raw_payload is not None:
             item.raw_payload = data.raw_payload
 
         item = await self.repository.update(item)
-        return EventResponse.from_orm(item)
+        return EventResponse.model_validate(item)
 
     async def delete_event(self, event_id: UUID) -> bool:
         item = await self.repository.get(event_id)

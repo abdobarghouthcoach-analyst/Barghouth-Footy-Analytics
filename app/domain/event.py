@@ -12,3 +12,13 @@ class SourceProvider(str, Enum):
     MANUAL = "manual"
     VEO = "veo"
     OTHER = "other"
+
+
+class EventSource(str, Enum):
+    MANUAL = "manual"
+    IMPORT = "import"
+
+
+class EventProvider(str, Enum):
+    VEO = "veo"
+    OTHER = "other"

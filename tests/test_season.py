@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -33,6 +33,8 @@ def make_season(
         is_active=is_active,
     )
     season.id = uuid.UUID(id_value)
+    season.created_at = datetime.now(timezone.utc)
+    season.updated_at = season.created_at
     return season
 
 
@@ -71,7 +73,7 @@ async def test_get_season_not_found(season_service: SeasonService):
 
 @pytest.mark.asyncio
 async def test_create_season(season_service: SeasonService):
-    season = make_season("55555555-5555-5555-5555-555555555555")
+    season = make_season("55555555-5555-5555-5555-555555555555", name="2024/25", start_date=date(2024, 8, 1), end_date=date(2025, 5, 31), is_active=True)
     season_service.repository.create = AsyncMock(return_value=season)
 
     data = SeasonCreate(

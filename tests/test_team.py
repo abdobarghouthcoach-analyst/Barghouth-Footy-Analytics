@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -38,6 +39,8 @@ def make_team(
         club_id=club_id,
     )
     team.id = uuid.UUID(id_value)
+    team.created_at = datetime.now(timezone.utc)
+    team.updated_at = team.created_at
     return team
 
 

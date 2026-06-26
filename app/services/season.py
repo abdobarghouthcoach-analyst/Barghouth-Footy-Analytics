@@ -14,11 +14,11 @@ class SeasonService:
 
     async def list_seasons(self) -> list[SeasonResponse]:
         seasons = await self.repository.list()
-        return [SeasonResponse.from_orm(item) for item in seasons]
+        return [SeasonResponse.model_validate(item) for item in seasons]
 
     async def get_season(self, season_id: UUID) -> SeasonResponse | None:
         season = await self.repository.get(season_id)
-        return SeasonResponse.from_orm(season) if season else None
+        return SeasonResponse.model_validate(season) if season else None
 
     async def create_season(self, data: SeasonCreate) -> SeasonResponse:
         if data.start_date >= data.end_date:
@@ -32,7 +32,7 @@ class SeasonService:
             is_active=data.is_active,
         )
         season = await self.repository.create(season)
-        return SeasonResponse.from_orm(season)
+        return SeasonResponse.model_validate(season)
 
     async def update_season(self, season_id: UUID, data: SeasonUpdate) -> SeasonResponse | None:
         season = await self.repository.get(season_id)
@@ -54,7 +54,7 @@ class SeasonService:
             raise ValueError("start_date must be before end_date")
 
         season = await self.repository.update(season)
-        return SeasonResponse.from_orm(season)
+        return SeasonResponse.model_validate(season)
 
     async def delete_season(self, season_id: UUID) -> bool:
         season = await self.repository.get(season_id)

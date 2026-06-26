@@ -13,11 +13,11 @@ class CompetitionService:
 
     async def list_competitions(self) -> list[CompetitionResponse]:
         competitions = await self.repository.list()
-        return [CompetitionResponse.from_orm(item) for item in competitions]
+        return [CompetitionResponse.model_validate(item) for item in competitions]
 
     async def get_competition(self, competition_id: UUID) -> CompetitionResponse | None:
         competition = await self.repository.get(competition_id)
-        return CompetitionResponse.from_orm(competition) if competition else None
+        return CompetitionResponse.model_validate(competition) if competition else None
 
     async def create_competition(self, data: CompetitionCreate) -> CompetitionResponse:
         competition = Competition(
@@ -27,7 +27,7 @@ class CompetitionService:
             competition_type=data.competition_type,
         )
         competition = await self.repository.create(competition)
-        return CompetitionResponse.from_orm(competition)
+        return CompetitionResponse.model_validate(competition)
 
     async def update_competition(
         self,
@@ -48,7 +48,7 @@ class CompetitionService:
             competition.competition_type = data.competition_type
 
         competition = await self.repository.update(competition)
-        return CompetitionResponse.from_orm(competition)
+        return CompetitionResponse.model_validate(competition)
 
     async def delete_competition(self, competition_id: UUID) -> bool:
         competition = await self.repository.get(competition_id)

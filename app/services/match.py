@@ -14,11 +14,11 @@ class MatchService:
 
     async def list_matches(self) -> list[MatchResponse]:
         matches = await self.repository.list()
-        return [MatchResponse.from_orm(item) for item in matches]
+        return [MatchResponse.model_validate(item) for item in matches]
 
     async def get_match(self, match_id: UUID) -> MatchResponse | None:
         match = await self.repository.get(match_id)
-        return MatchResponse.from_orm(match) if match else None
+        return MatchResponse.model_validate(match) if match else None
 
     async def create_match(self, data: MatchCreate) -> MatchResponse:
         if data.home_team_id == data.away_team_id:
@@ -35,7 +35,7 @@ class MatchService:
             analyst_notes=data.analyst_notes,
         )
         match = await self.repository.create(match)
-        return MatchResponse.from_orm(match)
+        return MatchResponse.model_validate(match)
 
     async def update_match(self, match_id: UUID, data: MatchUpdate) -> MatchResponse | None:
         match = await self.repository.get(match_id)
@@ -62,7 +62,7 @@ class MatchService:
             match.analyst_notes = data.analyst_notes
 
         match = await self.repository.update(match)
-        return MatchResponse.from_orm(match)
+        return MatchResponse.model_validate(match)
 
     async def delete_match(self, match_id: UUID) -> bool:
         match = await self.repository.get(match_id)

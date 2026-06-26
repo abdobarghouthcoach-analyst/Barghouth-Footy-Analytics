@@ -37,12 +37,16 @@ export type Match = {
 export type Event = {
   id: string
   match_id: string
+  import_job_id?: string | null
   team_id: string
   player_id?: string | null
   event_type: string
   minute: number
   second: number
-  period: string
+  period?: string | null
+  source?: 'manual' | 'import'
+  provider?: 'veo' | 'other' | null
+  provider_event_id?: string | null
   notes?: string | null
   raw_payload?: Record<string, unknown> | null
   created_at?: string
@@ -57,6 +61,26 @@ export type CreateEventPayload = {
   second: number
   period: string
   notes?: string | null
+}
+
+export type ImportJob = {
+  id: string
+  match_id: string
+  provider: 'veo' | 'csv' | 'other'
+  status: 'created' | 'uploaded' | 'extracting' | 'parsing' | 'normalizing' | 'persisting' | 'completed' | 'failed'
+  original_filename: string
+  filename?: string
+  stored_file_path?: string | null
+  file_size_bytes?: number | null
+  checksum_sha256?: string | null
+  raw_metadata?: Record<string, unknown> | null
+  summary?: Record<string, unknown> | null
+  error_message?: string | null
+  completed_at?: string | null
+  imported_events_count: number
+  warnings_count: number
+  created_at: string
+  updated_at: string
 }
 
 export async function getCompetitions(): Promise<Competition[]> {
@@ -114,5 +138,18 @@ export async function createEvent(payload: CreateEventPayload): Promise<Event> {
   return fetcher('/events', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export async function getMatchImports(matchId: string): Promise<ImportJob[]> {
+  return fetcher(`/matches/${matchId}/imports`)
+}
+
+export async function uploadVeoHighlightsImport(matchId: string, file: File): Promise<ImportJob> {
+  const body = new FormData()
+  body.append('file', file)
+  return fetcher(`/matches/${matchId}/imports/veo-highlights`, {
+    method: 'POST',
+    body,
   })
 }

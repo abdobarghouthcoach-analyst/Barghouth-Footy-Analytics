@@ -8,7 +8,13 @@ class ImportProvider(str, Enum):
 
 
 class ImportStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
+    CREATED = "created"
+    PENDING = "created"
+    UPLOADED = "uploaded"
+    EXTRACTING = "extracting"
+    PARSING = "parsing"
+    RUNNING = "parsing"
+    NORMALIZING = "normalizing"
+    PERSISTING = "persisting"
     COMPLETED = "completed"
     FAILED = "failed"

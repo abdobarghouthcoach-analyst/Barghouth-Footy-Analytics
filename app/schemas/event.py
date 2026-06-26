@@ -2,9 +2,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.event import EventPeriod, SourceProvider
+from app.domain.event import EventPeriod, EventProvider, EventSource, SourceProvider
 
 
 class EventBase(BaseModel):
@@ -14,13 +14,17 @@ class EventBase(BaseModel):
     event_type: str = Field(..., min_length=1, max_length=64)
     minute: int = Field(..., ge=0)
     second: int = Field(..., ge=0, le=59)
-    period: EventPeriod
+    period: EventPeriod | None = None
     x_coordinate: float | None = Field(None, ge=0.0, le=1.0)
     y_coordinate: float | None = Field(None, ge=0.0, le=1.0)
     notes: str | None = Field(None, max_length=2000)
     tags: dict | None = None
     source_provider: SourceProvider = SourceProvider.MANUAL
     source_event_id: str | None = Field(None, max_length=128)
+    import_job_id: UUID | None = None
+    source: EventSource = EventSource.MANUAL
+    provider: EventProvider | None = None
+    provider_event_id: str | None = Field(None, max_length=128)
     raw_payload: dict | None = None
 
 
@@ -42,13 +46,16 @@ class EventUpdate(BaseModel):
     tags: dict | None = None
     source_provider: SourceProvider | None = None
     source_event_id: str | None = Field(None, max_length=128)
+    import_job_id: UUID | None = None
+    source: EventSource | None = None
+    provider: EventProvider | None = None
+    provider_event_id: str | None = Field(None, max_length=128)
     raw_payload: dict | None = None
 
 
 class EventResponse(EventBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True

@@ -6,6 +6,8 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import settings
+from app.models.base import Base
+import app.models.competition  # noqa: F401
 
 config = context.config
 fileConfig(config.config_file_name)
@@ -14,7 +16,7 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=None, literal_binds=True)
+    context.configure(url=url, target_metadata=Base.metadata, literal_binds=True)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -28,7 +30,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=None)
+        context.configure(connection=connection, target_metadata=Base.metadata)
 
         with connection.begin_transaction():
             context.run_migrations()

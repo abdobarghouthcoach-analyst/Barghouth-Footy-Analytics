@@ -1,4 +1,6 @@
 from unittest.mock import AsyncMock, Mock
+from datetime import datetime, timezone
+from uuid import UUID
 
 import pytest
 
@@ -23,7 +25,9 @@ def make_competition(id_value, name="Premier League", country="England", level=C
         level=level,
         competition_type=competition_type,
     )
-    competition.id = id_value
+    competition.id = UUID(id_value)
+    competition.created_at = datetime.now(timezone.utc)
+    competition.updated_at = competition.created_at
     return competition
 
 
@@ -62,7 +66,7 @@ async def test_get_competition_not_found(competition_service: CompetitionService
 
 @pytest.mark.asyncio
 async def test_create_competition(competition_service: CompetitionService):
-    competition = make_competition("44444444-4444-4444-4444-444444444444")
+    competition = make_competition("44444444-4444-4444-4444-444444444444", name="Bundesliga", country="Germany")
     competition_service.repository.create = AsyncMock(return_value=competition)
 
     data = CompetitionCreate(

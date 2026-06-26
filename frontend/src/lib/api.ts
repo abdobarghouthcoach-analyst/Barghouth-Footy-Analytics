@@ -28,6 +28,7 @@ export type Match = {
   away_team_id: string
   kickoff_datetime: string
   venue: string
+  status?: 'scheduled' | 'live' | 'finished' | 'cancelled' | 'postponed'
   analyst_notes?: string | null
   created_at?: string
   updated_at?: string

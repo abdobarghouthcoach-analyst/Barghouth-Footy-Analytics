@@ -33,3 +33,98 @@ select {
 ::selection {
   background: rgba(88, 166, 255, 0.35);
 }
+
+:focus-visible {
+  outline: 2px solid rgba(88, 166, 255, 0.9);
+  outline-offset: 3px;
+}
+
+.btn-primary {
+  background: #58a6ff;
+  color: #020617;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  box-shadow: 0 14px 30px rgba(88, 166, 255, 0.18);
+}
+
+.btn-primary:hover {
+  background: #7ec4ff;
+}
+
+.btn-secondary {
+  background: #161b22;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 24px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+}
+
+.btn-secondary:hover {
+  border-color: #58a6ff;
+  color: #ffffff;
+}
+
+.input {
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #c9d1d9;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.input:focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.16);
+  outline: none;
+}
+
+.label {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #c9d1d9;
+}
+
+.card-surface {
+  border-radius: 24px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.text-muted {
+  color: #8b949e;
+}
+
+.shadow-card {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.breadcrumb-item {
+  color: #8b949e;
+}
+
+.breadcrumb-item a {
+  color: #8b949e;
+}
+
+.breadcrumb-item a:hover {
+  color: #ffffff;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

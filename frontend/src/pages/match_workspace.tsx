@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { getMatch, getTeams, Match, Team } from '../lib/api'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getMatch, getTeams, getEvents, createEvent, Match, Team, Event, CreateEventPayload } from '../lib/api'
 
 function StatusBadge({ status }: { status?: string }) {
   const mapping: Record<string, string> = {
@@ -98,9 +98,114 @@ export function MatchWorkspacePage() {
 
         <div className="mt-6">
           {isLoading && <div className="text-muted">Loading match…</div>}
-          {!isLoading && <TabContent tab={active} match={match} />}
+          {!isLoading && active !== 'Timeline' && <TabContent tab={active} match={match} />}
+
+          {/* Timeline tab: fetch + show events */}
+          {!isLoading && active === 'Timeline' && match && (
+            <TimelineTab matchId={match.id} teams={teams} />
+          )}
         </div>
       </div>
     </section>
+  )
+}
+
+function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
+  const queryClient = useQueryClient()
+  const { data: events = [], isLoading } = useQuery<Event[]>(['events', matchId], () => getEvents(matchId), { enabled: !!matchId })
+  const [showForm, setShowForm] = useState(false)
+
+  const mutation = useMutation((payload: CreateEventPayload) => createEvent(payload), {
+    onSuccess() {
+      queryClient.invalidateQueries(['events', matchId])
+      setShowForm(false)
+    },
+  })
+
+  const [form, setForm] = useState({ event_type: '', minute: '0', second: '0', period: '1H', team_id: '' })
+
+  function update<K extends keyof typeof form>(k: K, v: string) {
+    setForm((s) => ({ ...s, [k]: v }))
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.team_id || !form.event_type) return
+    const payload: CreateEventPayload = {
+      match_id: matchId,
+      team_id: form.team_id,
+      event_type: form.event_type,
+      minute: Number(form.minute),
+      second: Number(form.second),
+      period: form.period as any,
+      notes: undefined,
+    }
+    mutation.mutate(payload)
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Timeline</h3>
+        <div>
+          <button className="btn-secondary mr-2" onClick={() => setShowForm((s) => !s)}>
+            {showForm ? 'Cancel' : 'Add Event'}
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <form onSubmit={submit} className="mb-4 rounded border border-border p-4 bg-surface3">
+          <div className="grid grid-cols-3 gap-3">
+            <input className="input" placeholder="Event type" value={form.event_type} onChange={(e) => update('event_type', e.target.value)} required />
+            <input className="input" type="number" min={0} placeholder="Minute" value={form.minute} onChange={(e) => update('minute', e.target.value)} required />
+            <input className="input" type="number" min={0} max={59} placeholder="Second" value={form.second} onChange={(e) => update('second', e.target.value)} required />
+            <select className="input" value={form.period} onChange={(e) => update('period', e.target.value)}>
+              <option value="1H">1H</option>
+              <option value="2H">2H</option>
+              <option value="ET">ET</option>
+              <option value="P">P</option>
+            </select>
+            <select className="input" value={form.team_id} onChange={(e) => update('team_id', e.target.value)} required>
+              <option value="">Select team</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <div />
+          </div>
+
+          <div className="mt-3">
+            <textarea className="input h-24" placeholder="Notes (optional)" />
+          </div>
+
+          <div className="mt-3">
+            <button className="btn-primary" type="submit" disabled={mutation.isLoading}>{mutation.isLoading ? 'Adding…' : 'Add Event'}</button>
+          </div>
+        </form>
+      )}
+
+      {isLoading && <div className="text-muted">Loading events…</div>}
+
+      {!isLoading && events.length === 0 && <div className="text-muted">No events imported yet.</div>}
+
+      {!isLoading && events.length > 0 && (
+        <ul className="space-y-2">
+          {events
+            .slice()
+            .sort((a, b) => a.minute - b.minute || a.second - b.second)
+            .map((ev) => (
+              <li key={ev.id} className="rounded border border-border p-3 bg-surface3 flex justify-between items-start">
+                <div>
+                  <div className="text-white font-medium">{ev.minute}:{String(ev.second).padStart(2, '0')} — {ev.event_type}</div>
+                  <div className="text-muted text-sm mt-1">Team: {ev.team_id} {ev.player_id ? `• Player: ${ev.player_id}` : ''}</div>
+                  {ev.notes && <div className="text-muted text-sm mt-1">Notes: {ev.notes}</div>}
+                </div>
+                <div className="text-sm text-muted">{new Date(ev.created_at ?? '').toLocaleString()}</div>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
   )
 }

@@ -33,6 +33,31 @@ export type Match = {
   updated_at?: string
 }
 
+export type Event = {
+  id: string
+  match_id: string
+  team_id: string
+  player_id?: string | null
+  event_type: string
+  minute: number
+  second: number
+  period: string
+  notes?: string | null
+  raw_payload?: Record<string, unknown> | null
+  created_at?: string
+}
+
+export type CreateEventPayload = {
+  match_id: string
+  team_id: string
+  player_id?: string | null
+  event_type: string
+  minute: number
+  second: number
+  period: string
+  notes?: string | null
+}
+
 export async function getCompetitions(): Promise<Competition[]> {
   return fetcher('/competitions')
 }
@@ -75,6 +100,18 @@ export async function createMatch(payload: CreateMatchPayload): Promise<Match> {
 export async function updateMatch(matchId: string, payload: UpdateMatchPayload): Promise<Match> {
   return fetcher(`/matches/${matchId}`, {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getEvents(matchId: string): Promise<Event[]> {
+  // backend supports filtering by match_id query param
+  return fetcher(`/events?match_id=${encodeURIComponent(matchId)}`)
+}
+
+export async function createEvent(payload: CreateEventPayload): Promise<Event> {
+  return fetcher('/events', {
+    method: 'POST',
     body: JSON.stringify(payload),
   })
 }

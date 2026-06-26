@@ -11,8 +11,11 @@ class EventRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def list(self) -> List[Event]:
-        result = await self.session.execute(select(Event))
+    async def list(self, match_id: UUID | None = None) -> List[Event]:
+        statement = select(Event)
+        if match_id is not None:
+            statement = statement.where(Event.match_id == match_id)
+        result = await self.session.execute(statement)
         return result.scalars().all()
 
     async def get(self, event_id: UUID) -> Event | None:

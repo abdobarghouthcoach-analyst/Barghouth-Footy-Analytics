@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -15,8 +15,11 @@ async def get_service(session: AsyncSession = Depends(get_db_session)) -> EventS
 
 
 @router.get("/", response_model=list[EventResponse])
-async def list_events(service: EventService = Depends(get_service)) -> list[EventResponse]:
-    return await service.list_events()
+async def list_events(
+    match_id: UUID | None = Query(None),
+    service: EventService = Depends(get_service),
+) -> list[EventResponse]:
+    return await service.list_events(match_id=match_id)
 
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)

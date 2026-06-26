@@ -6,6 +6,7 @@ from app.api.root import router as root_router
 from app.api.v1 import router as api_v1_router
 from app.config import settings
 from app.db.session import init_db
+from app.imports.router import router as imports_router
 from app.logging import configure_logging
 
 
@@ -16,6 +17,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Barghouth Footy Analytics Backend", version="0.1.0")
     app.include_router(root_router)
     app.include_router(health_router)
+    app.include_router(imports_router, prefix="/api")
     app.include_router(api_v1_router)
 
     return app

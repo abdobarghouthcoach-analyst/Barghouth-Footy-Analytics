@@ -8,6 +8,7 @@ from app.api.v1.events import router as events_router
 from app.api.v1.root import router as root_router
 from app.api.v1.seasons import router as seasons_router
 from app.api.v1.teams import router as teams_router
+from app.imports.router import router as imports_router
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(root_router)
@@ -16,5 +17,6 @@ router.include_router(competitions_router)
 router.include_router(seasons_router)
 router.include_router(teams_router)
 router.include_router(matches_router)
+router.include_router(imports_router)
 router.include_router(events_router)
 router.include_router(import_jobs_router)

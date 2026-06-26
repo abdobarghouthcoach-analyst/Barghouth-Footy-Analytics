@@ -1,8 +1,20 @@
-import { useParams, Link } from 'react-router-dom'
 import { FormEvent, useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
-import { getMatch, getTeams, getEvents, createEvent, Match, Team, Event, CreateEventPayload } from '../lib/api'
+import {
+  createEvent,
+  getEvents,
+  getMatch,
+  getMatchImports,
+  getTeams,
+  uploadVeoHighlightsImport,
+  CreateEventPayload,
+  Event,
+  ImportJob,
+  Match,
+  Team,
+} from '../lib/api'
 
 function StatusBadge({ status }: { status?: string }) {
   const mapping: Record<string, string> = {
@@ -18,11 +30,9 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 function TabContent({ tab, match }: { tab: string; match: Match | null }) {
-  const title = `${tab} — Placeholder`
+  const title = `${tab} - Placeholder`
   const description = {
     Overview: 'High-level match metadata and quick insights will appear here.',
-    Import: 'Upload or import event data (CSV, event feed) and mapping tools.',
-    Events: 'Event timeline and play-by-play visualisations will live here.',
     Analysis: 'Tactical and statistical analysis tools and charts will be available here.',
     Report: 'Generate and manage coach-ready reports and exports from here.',
   }[tab]
@@ -31,9 +41,7 @@ function TabContent({ tab, match }: { tab: string; match: Match | null }) {
     <div className="rounded border border-border p-6 bg-surface3">
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <p className="text-muted mt-2">{description}</p>
-      {tab === 'Overview' && match && (
-        <div className="mt-4 text-sm text-muted">Created at: {match.created_at ?? '—'}</div>
-      )}
+      {tab === 'Overview' && match && <div className="mt-4 text-sm text-muted">Created at: {match.created_at ?? '-'}</div>}
     </div>
   )
 }
@@ -49,7 +57,7 @@ export function MatchWorkspacePage() {
 
   const teamMap = useMemo(() => {
     const map = new Map<string, Team>()
-    teams.forEach((t) => map.set(t.id, t))
+    teams.forEach((team) => map.set(team.id, team))
     return map
   }, [teams])
 
@@ -57,7 +65,6 @@ export function MatchWorkspacePage() {
 
   const home = match ? teamMap.get(match.home_team_id) : undefined
   const away = match ? teamMap.get(match.away_team_id) : undefined
-
   const tabs = ['Overview', 'Import', 'Events', 'Analysis', 'Report']
 
   return (
@@ -65,7 +72,7 @@ export function MatchWorkspacePage() {
       <div className="rounded-3xl border border-border bg-surface2 p-6 shadow-card">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-4">
-            <Link to="/matches" className="text-sm text-accent hover:text-accent2">← Back to Matches</Link>
+            <Link to="/matches" className="text-sm text-accent hover:text-accent2">Back to Matches</Link>
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-muted">Match workspace</p>
               <h1 className="mt-2 text-3xl font-semibold text-white">
@@ -73,18 +80,9 @@ export function MatchWorkspacePage() {
               </h1>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-3xl border border-border bg-surface3 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-muted">Competition</p>
-                <p className="mt-2 text-sm text-white">{match?.competition_id || '—'}</p>
-              </div>
-              <div className="rounded-3xl border border-border bg-surface3 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-muted">Season</p>
-                <p className="mt-2 text-sm text-white">{match?.season_id || '—'}</p>
-              </div>
-              <div className="rounded-3xl border border-border bg-surface3 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-muted">Venue</p>
-                <p className="mt-2 text-sm text-white">{match?.venue || '—'}</p>
-              </div>
+              <InfoTile label="Competition" value={match?.competition_id || '-'} />
+              <InfoTile label="Season" value={match?.season_id || '-'} />
+              <InfoTile label="Venue" value={match?.venue || '-'} />
             </div>
           </div>
 
@@ -92,7 +90,7 @@ export function MatchWorkspacePage() {
             <p className="text-xs uppercase tracking-[0.3em] text-muted">Match status</p>
             <div className="mt-3 flex items-center gap-3">
               <StatusBadge status={match?.status} />
-              <div className="text-sm text-muted">Kickoff: {match ? new Date(match.kickoff_datetime).toLocaleString() : '—'}</div>
+              <div className="text-sm text-muted">Kickoff: {match ? new Date(match.kickoff_datetime).toLocaleString() : '-'}</div>
             </div>
             <div className="mt-4 text-sm text-muted">Analyst notes provide context for this report and future exports.</div>
           </div>
@@ -100,24 +98,24 @@ export function MatchWorkspacePage() {
 
         <div className="mt-6 border-b border-border">
           <nav className="grid grid-cols-5 gap-2">
-            {tabs.map((t) => (
+            {tabs.map((tab) => (
               <button
-                key={t}
-                onClick={() => setActive(t)}
+                key={tab}
+                onClick={() => setActive(tab)}
                 className={`rounded-3xl px-4 py-3 text-sm font-semibold transition ${
-                  active === t ? 'bg-accent text-black shadow-card' : 'text-muted hover:bg-surface3 hover:text-white'
+                  active === tab ? 'bg-accent text-black shadow-card' : 'text-muted hover:bg-surface3 hover:text-white'
                 }`}
               >
-                {t}
+                {tab}
               </button>
             ))}
           </nav>
         </div>
 
         <div className="mt-6">
-          {isLoading && <div className="text-muted">Loading match…</div>}
+          {isLoading && <div className="text-muted">Loading match...</div>}
           {!isLoading && active !== 'Events' && active !== 'Import' && <TabContent tab={active} match={match ?? null} />}
-          {!isLoading && active === 'Import' && <ImportTab />}
+          {!isLoading && active === 'Import' && <ImportTab matchId={matchId} />}
           {!isLoading && active === 'Events' && match && <TimelineTab matchId={match.id} teams={teams} />}
         </div>
       </div>
@@ -125,50 +123,131 @@ export function MatchWorkspacePage() {
   )
 }
 
-function ImportTab() {
-  const [provider, setProvider] = useState('veo')
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-3xl border border-border bg-surface3 p-4">
+      <p className="text-xs uppercase tracking-[0.3em] text-muted">{label}</p>
+      <p className="mt-2 text-sm text-white">{value}</p>
+    </div>
+  )
+}
+
+function ImportTab({ matchId }: { matchId: string }) {
+  const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
+  const { data: imports = [], isLoading } = useQuery<ImportJob[]>({
+    queryKey: ['matches', matchId, 'imports'],
+    queryFn: () => getMatchImports(matchId),
+  })
+  const latestImport = imports[0]
+  const mutation = useMutation({
+    mutationFn: (selectedFile: File) => uploadVeoHighlightsImport(matchId, selectedFile),
+    onSuccess() {
+      setFile(null)
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'imports'] })
+    },
+  })
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!file || mutation.isPending) return
+    mutation.mutate(file)
+  }
 
   return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-border p-6 bg-surface3 shadow-card">
-        <h3 className="text-lg font-semibold text-white">Import Match Data</h3>
-        <p className="text-muted mt-2">Import match events from video platforms or analyst files. Imported data will appear in the Events feed.</p>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className={`flex flex-col gap-3 rounded-3xl border p-4 transition ${provider === 'veo' ? 'border-accent bg-surface' : 'border-border bg-surface3'} cursor-pointer`}>
-            <input type="radio" name="provider" value="veo" checked={provider === 'veo'} onChange={() => setProvider('veo')} className="hidden" />
-            <span className="text-sm font-semibold text-white">Veo Highlights ZIP</span>
-            <span className="text-sm text-muted">Upload a Veo match package for event extraction.</span>
-          </label>
-          <label className={`flex flex-col gap-3 rounded-3xl border p-4 transition ${provider === 'csv' ? 'border-accent bg-surface' : 'border-border bg-surface3'} cursor-pointer`}>
-            <input type="radio" name="provider" value="csv" checked={provider === 'csv'} onChange={() => setProvider('csv')} className="hidden" />
-            <span className="text-sm font-semibold text-white">Manual CSV</span>
-            <span className="text-sm text-muted">Upload event timelines from custom CSV sources.</span>
-          </label>
-          <div className="rounded-3xl border border-border bg-surface3 p-4 text-muted">
-            <p className="text-sm font-semibold text-white">Other / Coming Soon</p>
-            <p className="mt-2 text-sm">Additional import providers and automations are planned.</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Veo Highlights ZIP</h3>
+            <p className="text-muted mt-2">Upload a Veo highlights package to create import-tracked match events.</p>
           </div>
+          {latestImport && <ImportStatusBadge status={latestImport.status} />}
         </div>
 
-        <div className="mt-4">
-          <input type="file" accept={provider === 'veo' ? '.zip' : '.csv'} onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="" />
-          {file && <div className="text-sm text-muted mt-2">Selected: {file.name}</div>}
-          <div className="mt-3 text-sm text-muted">No upload yet — local only. Backend upload coming later.</div>
-        </div>
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          <label className="block">
+            <span className="label">Veo Highlights ZIP</span>
+            <input type="file" accept=".zip,application/zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input" />
+          </label>
+          {file && <div className="text-sm text-muted">Selected: {file.name}</div>}
+          <button className="btn-primary" type="submit" disabled={!file || mutation.isPending}>
+            {mutation.isPending ? 'Uploading...' : 'Upload ZIP'}
+          </button>
+        </form>
+
+        {mutation.error && <div className="mt-4 rounded-3xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">{(mutation.error as Error).message}</div>}
+
+        {latestImport && (
+          <div className="mt-6 rounded-3xl border border-border bg-surface p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm text-muted">Latest import</p>
+                <p className="mt-1 font-semibold text-white">{latestImport.original_filename || latestImport.filename}</p>
+              </div>
+              <div className="text-sm text-muted">
+                {latestImport.imported_events_count} event{latestImport.imported_events_count === 1 ? '' : 's'} imported
+              </div>
+            </div>
+            {latestImport.summary && (
+              <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-3">
+                <SummaryValue label="Message" value={String(latestImport.summary.message ?? 'No summary message')} />
+                <SummaryValue label="Parsed" value={String(latestImport.summary.events_parsed ?? 0)} />
+                <SummaryValue label="Warnings" value={String(latestImport.warnings_count ?? 0)} />
+              </div>
+            )}
+            {latestImport.error_message && <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{latestImport.error_message}</div>}
+            {Array.isArray(latestImport.summary?.warnings) && latestImport.summary.warnings.length > 0 && (
+              <ul className="mt-4 space-y-2 text-sm text-yellow-100">
+                {latestImport.summary.warnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`} className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3">
+                    {String(warning)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded border border-border p-6 bg-surface3 text-muted">
-          <h4 className="text-white font-medium">Full Match Video</h4>
-          <p className="mt-2">Disabled — future feature</p>
-        </div>
-        <div className="rounded border border-border p-6 bg-surface3 text-muted">
-          <h4 className="text-white font-medium">Tactical Pattern Video</h4>
-          <p className="mt-2">Disabled — future feature</p>
-        </div>
+      <div className="rounded-3xl border border-border p-6 bg-surface3 shadow-card">
+        <h4 className="text-white font-medium">Import history</h4>
+        {isLoading && <div className="mt-4 text-muted">Loading imports...</div>}
+        {!isLoading && imports.length === 0 && <div className="mt-4 text-muted">No imports for this match yet.</div>}
+        {!isLoading && imports.length > 0 && (
+          <ul className="mt-4 space-y-3">
+            {imports.map((item) => (
+              <li key={item.id} className="rounded-3xl border border-border bg-surface p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-semibold text-white">{item.original_filename || item.filename}</p>
+                    <p className="text-sm text-muted">{new Date(item.created_at).toLocaleString()}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ImportStatusBadge status={item.status} />
+                    <span className="rounded-full bg-background px-3 py-1 text-sm text-muted">{item.imported_events_count} events</span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+    </div>
+  )
+}
+
+function ImportStatusBadge({ status }: { status: ImportJob['status'] }) {
+  const className = status === 'completed' ? 'bg-green-500 text-black' : status === 'failed' ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'
+  return <span className={`rounded-full px-3 py-1 text-sm font-semibold ${className}`}>{status}</span>
+}
+
+function SummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-surface3 p-3">
+      <p className="text-xs uppercase tracking-[0.2em] text-muted">{label}</p>
+      <p className="mt-2 text-white">{value}</p>
     </div>
   )
 }
@@ -176,7 +255,7 @@ function ImportTab() {
 function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
   const queryClient = useQueryClient()
   const { data: events = [], isLoading } = useQuery<Event[]>({
-    queryKey: ['events', matchId],
+    queryKey: ['matches', matchId, 'events'],
     queryFn: () => getEvents(matchId),
     enabled: !!matchId,
   })
@@ -185,30 +264,29 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
   const mutation = useMutation({
     mutationFn: (payload: CreateEventPayload) => createEvent(payload),
     onSuccess() {
-      queryClient.invalidateQueries({ queryKey: ['events', matchId] })
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
       setShowForm(false)
     },
   })
 
   const [form, setForm] = useState({ event_type: '', minute: '0', second: '0', period: '1H', team_id: '' })
 
-  function update<K extends keyof typeof form>(k: K, v: string) {
-    setForm((s) => ({ ...s, [k]: v }))
+  function update<K extends keyof typeof form>(key: K, value: string) {
+    setForm((current) => ({ ...current, [key]: value }))
   }
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!form.team_id || !form.event_type) return
-    const payload: CreateEventPayload = {
+    mutation.mutate({
       match_id: matchId,
       team_id: form.team_id,
       event_type: form.event_type,
       minute: Number(form.minute),
       second: Number(form.second),
-      period: form.period as any,
+      period: form.period,
       notes: undefined,
-    }
-    mutation.mutate(payload)
+    })
   }
 
   return (
@@ -218,7 +296,7 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
           <h3 className="text-lg font-semibold text-white">Events</h3>
           <p className="text-sm text-muted">Track event timeline entries and match actions.</p>
         </div>
-        <button className="btn-secondary inline-flex items-center gap-2" onClick={() => setShowForm((s) => !s)}>
+        <button className="btn-secondary inline-flex items-center gap-2" onClick={() => setShowForm((current) => !current)}>
           {showForm ? 'Cancel' : 'Add Event'}
         </button>
       </div>
@@ -237,8 +315,8 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
             </select>
             <select className="input" value={form.team_id} onChange={(e) => update('team_id', e.target.value)} required>
               <option value="">Select team</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>{team.name}</option>
               ))}
             </select>
             <div />
@@ -249,12 +327,12 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
           </div>
 
           <div className="mt-3">
-            <button className="btn-primary" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Adding…' : 'Add Event'}</button>
+            <button className="btn-primary" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Adding...' : 'Add Event'}</button>
           </div>
         </form>
       )}
 
-      {isLoading && <div className="text-muted">Loading events…</div>}
+      {isLoading && <div className="text-muted">Loading events...</div>}
 
       {!isLoading && events.length === 0 && (
         <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
@@ -267,22 +345,30 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
         <ul className="space-y-2">
           {events
             .slice()
-            .sort((a, b) => a.minute - b.minute || a.second - b.second)
-            .map((ev) => (
-              <li key={ev.id} className="rounded-3xl border border-border p-4 bg-surface3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            .sort((first, second) => first.minute - second.minute || first.second - second.second)
+            .map((event) => (
+              <li key={event.id} className="rounded-3xl border border-border p-4 bg-surface3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-white font-medium">
+                  <div className="flex flex-wrap items-center gap-3 text-white font-medium">
                     <Clock size={18} />
-                    <span>{ev.minute}:{String(ev.second).padStart(2, '0')} — {ev.event_type}</span>
+                    <span>{event.minute}:{String(event.second).padStart(2, '0')} - {event.event_type}</span>
+                    <EventSourceBadge event={event} />
                   </div>
-                  <div className="text-muted text-sm">Team: {ev.team_id} {ev.player_id ? `• Player: ${ev.player_id}` : ''}</div>
-                  {ev.notes && <div className="text-muted text-sm">Notes: {ev.notes}</div>}
+                  <div className="text-muted text-sm">Team: {event.team_id} {event.player_id ? `- Player: ${event.player_id}` : ''}</div>
+                  {event.notes && <div className="text-muted text-sm">Notes: {event.notes}</div>}
                 </div>
-                <div className="text-sm text-muted">{new Date(ev.created_at ?? '').toLocaleString()}</div>
+                <div className="text-sm text-muted">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</div>
               </li>
             ))}
         </ul>
       )}
     </div>
   )
+}
+
+function EventSourceBadge({ event }: { event: Event }) {
+  if (event.source === 'import' || event.provider === 'veo') {
+    return <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">imported veo</span>
+  }
+  return <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">manual</span>
 }

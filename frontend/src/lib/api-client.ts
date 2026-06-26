@@ -9,7 +9,7 @@ export async function fetcher<T>(path: string, init?: RequestInit): Promise<T> {
     ...(init && init.headers ? (init.headers as Record<string, string>) : {}),
   }
 
-  if (init && init.body && !('Content-Type' in headers)) {
+  if (init && init.body && !(init.body instanceof FormData) && !('Content-Type' in headers)) {
     headers['Content-Type'] = 'application/json'
   }
 

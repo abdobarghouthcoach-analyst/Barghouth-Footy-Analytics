@@ -363,6 +363,7 @@ function formatDateTime(value: string) {
 
 function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
   const queryClient = useQueryClient()
+  const teamNames = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams])
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ['matches', matchId, 'events'],
     queryFn: () => getEvents(matchId),
@@ -455,20 +456,23 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
           {events
             .slice()
             .sort((first, second) => first.minute - second.minute || first.second - second.second)
-            .map((event) => (
-              <li key={event.id} className="rounded-3xl border border-border p-4 bg-surface3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3 text-white font-medium">
-                    <Clock size={18} />
-                    <span>{event.minute}:{String(event.second).padStart(2, '0')} - {event.event_type}</span>
-                    <EventSourceBadge event={event} />
+            .map((event) => {
+              const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown team'
+              return (
+                <li key={event.id} className="rounded-3xl border border-border p-4 bg-surface3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-3 text-white font-medium">
+                      <Clock size={18} />
+                      <span>{event.minute}:{String(event.second).padStart(2, '0')} - {event.event_type}</span>
+                      <EventSourceBadge event={event} />
+                    </div>
+                    <div className="text-muted text-sm">Team: {teamLabel} {event.player_id ? `- Player: ${event.player_id}` : ''}</div>
+                    {event.notes && <div className="text-muted text-sm">Notes: {event.notes}</div>}
                   </div>
-                  <div className="text-muted text-sm">Team: {event.team_id} {event.player_id ? `- Player: ${event.player_id}` : ''}</div>
-                  {event.notes && <div className="text-muted text-sm">Notes: {event.notes}</div>}
-                </div>
-                <div className="text-sm text-muted">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</div>
-              </li>
-            ))}
+                  <div className="text-sm text-muted">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</div>
+                </li>
+              )
+            })}
         </ul>
       )}
     </div>

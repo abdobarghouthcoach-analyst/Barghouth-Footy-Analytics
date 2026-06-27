@@ -24,7 +24,7 @@ def validate_imported_events(
                     {
                         "match_id": match_id,
                         "import_job_id": import_job_id,
-                        "team_id": parsed.team_id,
+                        "team_id": parsed.team_id or None,
                         "player_id": parsed.player_id,
                         "event_type": parsed.event_type,
                         "minute": parsed.minute,

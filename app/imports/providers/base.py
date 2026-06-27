@@ -8,7 +8,7 @@ class ParsedProviderEvent:
     event_type: str
     minute: int
     second: int
-    team_id: str
+    team_id: str | None = None
     period: str | None = None
     player_id: str | None = None
     provider_event_id: str | None = None

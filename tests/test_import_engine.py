@@ -180,6 +180,95 @@ async def test_zip_with_no_supported_metadata_fails_without_events(tmp_path, mon
 
 
 @pytest.mark.asyncio
+async def test_real_style_mp4_only_zip_imports_from_filenames(tmp_path, monkeypatch):
+    session = FakeImportSession()
+    importer = service(tmp_path, session, monkeypatch)
+    content = zip_bytes(
+        {
+            "Veo highlights Tamworth FC vs. Ashby/.veo-zip": "",
+            "Veo highlights Tamworth FC vs. Ashby/01 000124_-_Shot_on_goal.mp4": b"video",
+            "Veo highlights Tamworth FC vs. Ashby/04 000659_-_Goal.mp4": b"video",
+            "Veo highlights Tamworth FC vs. Ashby/16 010353_-_Shot_on_goal.mp4": b"video",
+        }
+    )
+
+    result = await importer.import_veo_highlights(match_id=MATCH_ID, file=upload("veo-real.zip", content))
+
+    assert result.status == ImportStatus.COMPLETED
+    assert result.imported_events_count == 3
+    assert len(session.events) == 3
+    assert result.summary is not None
+    assert result.summary["parser_selected"] == "veo_highlights_mp4_filename"
+    assert result.summary["selected_metadata_type"] == "mp4_filename"
+    assert result.summary["total_parsed_provider_rows"] == 3
+    assert result.summary["total_normalized_events"] == 3
+    assert result.summary["detected_mp4_highlight_files"] == [
+        "Veo highlights Tamworth FC vs. Ashby/01 000124_-_Shot_on_goal.mp4",
+        "Veo highlights Tamworth FC vs. Ashby/04 000659_-_Goal.mp4",
+        "Veo highlights Tamworth FC vs. Ashby/16 010353_-_Shot_on_goal.mp4",
+    ]
+
+    first_event = session.events[0]
+    assert first_event.match_id == MATCH_ID
+    assert first_event.import_job_id == session.import_jobs[0].id
+    assert first_event.source == EventSource.IMPORT
+    assert first_event.provider == EventProvider.VEO
+    assert first_event.team_id is None
+    assert first_event.team_id != HOME_TEAM_ID
+    assert first_event.player_id is None
+    assert first_event.event_type == "shot_on_goal"
+    assert first_event.minute == 1
+    assert first_event.second == 24
+    assert first_event.period is None
+    assert first_event.provider_event_id == "Veo highlights Tamworth FC vs. Ashby/01 000124_-_Shot_on_goal.mp4"
+    assert first_event.raw_payload["filename"] == "01 000124_-_Shot_on_goal.mp4"
+    assert first_event.raw_payload["relative_path"] == "Veo highlights Tamworth FC vs. Ashby/01 000124_-_Shot_on_goal.mp4"
+    assert first_event.raw_payload["clip_index"] == 1
+    assert first_event.raw_payload["veo_timestamp"] == "000124"
+    assert first_event.raw_payload["clock_seconds"] == 84
+    assert first_event.raw_payload["original_label"] == "Shot_on_goal"
+    assert first_event.raw_payload["parsed_from"] == "mp4_filename"
+
+    goal_event = session.events[1]
+    assert goal_event.event_type == "goal"
+    assert goal_event.minute == 6
+    assert goal_event.second == 59
+    assert goal_event.raw_payload["clock_seconds"] == 419
+
+    late_event = session.events[2]
+    assert late_event.event_type == "shot_on_goal"
+    assert late_event.minute == 63
+    assert late_event.second == 53
+    assert late_event.raw_payload["clock_seconds"] == 3833
+
+
+@pytest.mark.asyncio
+async def test_mp4_filename_parser_records_unsupported_patterns_without_crashing(tmp_path, monkeypatch):
+    session = FakeImportSession()
+    importer = service(tmp_path, session, monkeypatch)
+    content = zip_bytes(
+        {
+            "clips/01 000124_-_Shot-on goal.mp4": b"video",
+            "clips/random-highlight.mp4": b"video",
+        }
+    )
+
+    result = await importer.import_veo_highlights(match_id=MATCH_ID, file=upload("mixed-mp4.zip", content))
+
+    assert result.status == ImportStatus.COMPLETED
+    assert result.imported_events_count == 1
+    assert len(session.events) == 1
+    assert session.events[0].event_type == "shot_on_goal"
+    assert result.summary is not None
+    assert result.summary["unsupported_filename_patterns"] == [
+        {"filename": "clips/random-highlight.mp4", "reason": "unsupported Veo MP4 highlight filename pattern"}
+    ]
+    assert result.summary["ignored_files"] == [
+        {"filename": "clips/random-highlight.mp4", "reason": "unsupported Veo MP4 highlight filename pattern"}
+    ]
+
+
+@pytest.mark.asyncio
 async def test_zip_path_traversal_fails_and_writes_no_file_outside_job_dir(tmp_path, monkeypatch):
     session = FakeImportSession()
     importer = service(tmp_path, session, monkeypatch)
@@ -233,6 +322,22 @@ async def test_successful_json_metadata_import_creates_imported_veo_events_with_
     assert result.summary["total_parsed_provider_rows"] == 1
     assert result.summary["total_normalized_events"] == 1
     assert result.summary["unsupported_fields_encountered"] == ["confidence"]
+
+
+@pytest.mark.asyncio
+async def test_json_metadata_without_team_does_not_fallback_to_home_team(tmp_path, monkeypatch):
+    session = FakeImportSession()
+    importer = service(tmp_path, session, monkeypatch)
+    rows = [{"id": "veo-1", "event_type": "shot", "minute": 7, "second": 8}]
+    content = zip_bytes({"events.json": json.dumps(rows)})
+
+    result = await importer.import_veo_highlights(match_id=MATCH_ID, file=upload("events.zip", content))
+
+    assert result.status == ImportStatus.COMPLETED
+    assert len(session.events) == 1
+    assert session.events[0].team_id is None
+    assert session.events[0].team_id != HOME_TEAM_ID
+    assert session.events[0].player_id is None
 
 
 @pytest.mark.asyncio

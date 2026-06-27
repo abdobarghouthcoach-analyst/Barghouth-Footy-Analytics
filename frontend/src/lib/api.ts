@@ -51,7 +51,7 @@ export type Event = {
   id: string
   match_id: string
   import_job_id?: string | null
-  team_id: string
+  team_id?: string | null
   player_id?: string | null
   event_type: string
   minute: number

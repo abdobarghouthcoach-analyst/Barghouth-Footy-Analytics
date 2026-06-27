@@ -9,7 +9,7 @@ from app.domain.event import EventPeriod, EventProvider, EventSource, SourceProv
 
 class EventBase(BaseModel):
     match_id: UUID
-    team_id: UUID
+    team_id: UUID | None = None
     player_id: UUID | None = None
     event_type: str = Field(..., min_length=1, max_length=64)
     minute: int = Field(..., ge=0)

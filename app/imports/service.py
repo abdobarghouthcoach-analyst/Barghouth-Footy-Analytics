@@ -184,6 +184,8 @@ class ImportEngineService:
                 "total_parsed_provider_rows": parsed.diagnostics.get("total_parsed_provider_rows", len(parsed.events)),
                 "total_normalized_events": normalized_events_count,
                 "unsupported_fields_encountered": parsed.diagnostics.get("unsupported_fields_encountered", []),
+                "detected_mp4_highlight_files": parsed.diagnostics.get("detected_mp4_highlight_files", []),
+                "unsupported_filename_patterns": parsed.diagnostics.get("unsupported_filename_patterns", []),
             }
             import_job.summary = {
                 "message": "Import completed.",

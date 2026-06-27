@@ -13,7 +13,7 @@ class Event(TimestampedUUIDModel):
     __tablename__ = "events"
 
     match_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
-    team_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    team_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     player_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     minute: Mapped[int] = mapped_column(Integer, nullable=False)

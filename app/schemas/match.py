@@ -36,5 +36,7 @@ class MatchResponse(MatchBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    home_team_name: str | None = None
+    away_team_name: str | None = None
     created_at: datetime
     updated_at: datetime

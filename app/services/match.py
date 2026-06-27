@@ -13,12 +13,15 @@ class MatchService:
         self.repository = MatchRepository(session)
 
     async def list_matches(self) -> list[MatchResponse]:
-        matches = await self.repository.list()
-        return [MatchResponse.model_validate(item) for item in matches]
+        rows = await self.repository.list_with_team_names()
+        return [self._response_with_team_names(match, home_team_name, away_team_name) for match, home_team_name, away_team_name in rows]
 
     async def get_match(self, match_id: UUID) -> MatchResponse | None:
-        match = await self.repository.get(match_id)
-        return MatchResponse.model_validate(match) if match else None
+        row = await self.repository.get_with_team_names(match_id)
+        if row is None:
+            return None
+        match, home_team_name, away_team_name = row
+        return self._response_with_team_names(match, home_team_name, away_team_name)
 
     async def create_match(self, data: MatchCreate) -> MatchResponse:
         if data.home_team_id == data.away_team_id:
@@ -35,7 +38,7 @@ class MatchService:
             analyst_notes=data.analyst_notes,
         )
         match = await self.repository.create(match)
-        return MatchResponse.model_validate(match)
+        return await self.get_match(match.id) or MatchResponse.model_validate(match)
 
     async def update_match(self, match_id: UUID, data: MatchUpdate) -> MatchResponse | None:
         match = await self.repository.get(match_id)
@@ -62,7 +65,7 @@ class MatchService:
             match.analyst_notes = data.analyst_notes
 
         match = await self.repository.update(match)
-        return MatchResponse.model_validate(match)
+        return await self.get_match(match.id) or MatchResponse.model_validate(match)
 
     async def delete_match(self, match_id: UUID) -> bool:
         match = await self.repository.get(match_id)
@@ -71,3 +74,14 @@ class MatchService:
 
         await self.repository.delete(match)
         return True
+
+    def _response_with_team_names(
+        self,
+        match: Match,
+        home_team_name: str | None,
+        away_team_name: str | None,
+    ) -> MatchResponse:
+        response = MatchResponse.model_validate(match)
+        response.home_team_name = home_team_name
+        response.away_team_name = away_team_name
+        return response

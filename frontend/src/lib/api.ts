@@ -37,6 +37,8 @@ export type Match = {
   season_id: string
   home_team_id: string
   away_team_id: string
+  home_team_name?: string | null
+  away_team_name?: string | null
   kickoff_datetime: string
   venue: string
   status?: 'scheduled' | 'live' | 'finished' | 'cancelled' | 'postponed'
@@ -95,7 +97,7 @@ export type ImportJob = {
 }
 
 export async function getCompetitions(): Promise<Competition[]> {
-  return fetcher('/competitions')
+  return fetcher('/competitions/')
 }
 
 export type CreateCompetitionPayload = {
@@ -106,14 +108,14 @@ export type CreateCompetitionPayload = {
 }
 
 export async function createCompetition(payload: CreateCompetitionPayload): Promise<Competition> {
-  return fetcher('/competitions', {
+  return fetcher('/competitions/', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function getSeasons(): Promise<Season[]> {
-  return fetcher('/seasons')
+  return fetcher('/seasons/')
 }
 
 export type CreateSeasonPayload = {
@@ -125,14 +127,14 @@ export type CreateSeasonPayload = {
 }
 
 export async function createSeason(payload: CreateSeasonPayload): Promise<Season> {
-  return fetcher('/seasons', {
+  return fetcher('/seasons/', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function getTeams(): Promise<Team[]> {
-  return fetcher('/teams')
+  return fetcher('/teams/')
 }
 
 export type CreateTeamPayload = {
@@ -141,14 +143,14 @@ export type CreateTeamPayload = {
 }
 
 export async function createTeam(payload: CreateTeamPayload): Promise<Team> {
-  return fetcher('/teams', {
+  return fetcher('/teams/', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function getMatches(): Promise<Match[]> {
-  return fetcher('/matches')
+  return fetcher('/matches/')
 }
 
 export async function getMatch(matchId: string): Promise<Match> {
@@ -168,7 +170,7 @@ export type CreateMatchPayload = {
 export type UpdateMatchPayload = Partial<CreateMatchPayload>
 
 export async function createMatch(payload: CreateMatchPayload): Promise<Match> {
-  return fetcher('/matches', {
+  return fetcher('/matches/', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -183,11 +185,11 @@ export async function updateMatch(matchId: string, payload: UpdateMatchPayload):
 
 export async function getEvents(matchId: string): Promise<Event[]> {
   // backend supports filtering by match_id query param
-  return fetcher(`/events?match_id=${encodeURIComponent(matchId)}`)
+  return fetcher(`/events/?match_id=${encodeURIComponent(matchId)}`)
 }
 
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {
-  return fetcher('/events', {
+  return fetcher('/events/', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

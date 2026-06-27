@@ -5,14 +5,19 @@ import { getMatches, Match } from '../lib/api'
 import { Search, Filter } from 'lucide-react'
 
 function MatchRow({ item }: { item: Match }) {
+  const matchLabel = formatMatchLabel(item)
+
   return (
     <li className="rounded-3xl border border-border bg-surface3 p-4 shadow-card transition hover:-translate-y-0.5 hover:bg-surface2">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <Link to={`/matches/${item.id}`} className="text-lg font-semibold text-white hover:text-accent">
-            {item.venue}
+            {matchLabel}
           </Link>
-          <p className="mt-1 text-sm text-muted">{new Date(item.kickoff_datetime).toLocaleString()}</p>
+          <p className="mt-1 text-sm text-muted">
+            {new Date(item.kickoff_datetime).toLocaleString()}
+            {item.venue ? ` - ${item.venue}` : ''}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="rounded-full bg-background px-3 py-1 text-muted">{(item as any).status ?? 'Scheduled'}</span>
@@ -39,8 +44,10 @@ export function MatchesPage() {
       const status = (match as any).status?.toLowerCase() ?? 'scheduled'
       const competition = (match.competition_id || '').toLowerCase()
       const season = (match.season_id || '').toLowerCase()
+      const matchLabel = formatMatchLabel(match).toLowerCase()
+      const venue = (match.venue || '').toLowerCase()
 
-      if (search && !match.venue.toLowerCase().includes(query) && !match.id.toLowerCase().includes(query) && !competition.includes(query) && !season.includes(query)) {
+      if (search && !matchLabel.includes(query) && !venue.includes(query) && !match.id.toLowerCase().includes(query) && !competition.includes(query) && !season.includes(query)) {
         return false
       }
       if (statusFilter && status !== statusFilter) {
@@ -142,4 +149,10 @@ export function MatchesPage() {
       </div>
     </section>
   )
+}
+
+function formatMatchLabel(match: Match) {
+  const homeTeam = match.home_team_name || match.home_team_id
+  const awayTeam = match.away_team_name || match.away_team_id
+  return `${homeTeam} vs ${awayTeam}`
 }

@@ -55,9 +55,10 @@ class ImportEngineService:
         self.session.add(import_job)
         await self.session.commit()
         await self.session.refresh(import_job)
+        import_job_id = import_job.id
         logger.info(
             "import_job.created",
-            import_job_id=str(import_job.id),
+            import_job_id=str(import_job_id),
             match_id=str(match_id),
             provider=ImportProvider.VEO.value,
             original_filename=file.filename,
@@ -67,7 +68,7 @@ class ImportEngineService:
             await self._mark(import_job, ImportStatus.UPLOADED)
             stored_path, file_size, checksum = await self.storage.store_original_zip(
                 match_id=match_id,
-                import_job_id=import_job.id,
+                import_job_id=import_job_id,
                 file=file,
             )
             import_job.stored_file_path = str(stored_path)
@@ -77,7 +78,7 @@ class ImportEngineService:
             await self.session.commit()
             logger.info(
                 "import_job.zip_stored",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 stored_file_path=str(stored_path),
                 file_size_bytes=file_size,
@@ -85,10 +86,10 @@ class ImportEngineService:
             )
 
             await self._mark(import_job, ImportStatus.EXTRACTING)
-            extracted_dir, filenames = self.storage.safe_extract_zip(stored_path, match_id=match_id, import_job_id=import_job.id)
+            extracted_dir, filenames = self.storage.safe_extract_zip(stored_path, match_id=match_id, import_job_id=import_job_id)
             logger.info(
                 "import_job.zip_extracted",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 extracted_dir=str(extracted_dir),
                 file_count=len(filenames),
@@ -103,21 +104,21 @@ class ImportEngineService:
             }
             logger.info(
                 "import_job.metadata_discovered",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 detected_metadata_files=len(parsed.diagnostics.get("detected_metadata_files", [])),
                 ignored_files=len(parsed.diagnostics.get("ignored_files", [])),
             )
             logger.info(
                 "import_job.parser_selected",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 parser_selected=parsed.diagnostics.get("parser_selected"),
                 selected_metadata_file=parsed.diagnostics.get("selected_metadata_file"),
             )
             logger.info(
                 "import_job.rows_parsed",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 total_parsed_provider_rows=parsed.diagnostics.get("total_parsed_provider_rows", len(parsed.events)),
             )
@@ -125,7 +126,7 @@ class ImportEngineService:
             await self._mark(import_job, ImportStatus.NORMALIZING)
             event_payloads, validation_warnings = validate_imported_events(
                 match_id=match_id,
-                import_job_id=import_job.id,
+                import_job_id=import_job_id,
                 parsed_events=parsed.events,
             )
             warnings = [*parsed.warnings, *validation_warnings]
@@ -133,7 +134,7 @@ class ImportEngineService:
             raw_metadata["total_normalized_events"] = normalized_events_count
             logger.info(
                 "import_job.rows_normalized",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 total_normalized_events=normalized_events_count,
                 warnings_count=len(warnings),
@@ -199,13 +200,13 @@ class ImportEngineService:
             await self.session.refresh(import_job)
             logger.info(
                 "import_job.events_persisted",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 events_persisted=normalized_events_count,
             )
             logger.info(
                 "import_job.completed",
-                import_job_id=str(import_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 events_imported=normalized_events_count,
                 warnings_count=len(warnings),
@@ -213,7 +214,7 @@ class ImportEngineService:
             return ImportJobResponse.model_validate(import_job)
         except Exception as exc:
             await self.session.rollback()
-            failed_job = await self.session.get(ImportJob, import_job.id)
+            failed_job = await self.session.get(ImportJob, import_job_id)
             if failed_job is None:
                 raise
             failed_job.status = ImportStatus.FAILED
@@ -230,7 +231,7 @@ class ImportEngineService:
             await self.session.refresh(failed_job)
             logger.info(
                 "import_job.failed",
-                import_job_id=str(failed_job.id),
+                import_job_id=str(import_job_id),
                 match_id=str(match_id),
                 error_message=str(exc),
             )

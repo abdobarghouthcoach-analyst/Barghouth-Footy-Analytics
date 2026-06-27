@@ -207,6 +207,7 @@ async def test_successful_json_metadata_import_creates_imported_veo_events_with_
                 "minute": 12,
                 "second": 5,
                 "notes": "Saved",
+                "confidence": "high",
             }
         ]
     }
@@ -223,7 +224,15 @@ async def test_successful_json_metadata_import_creates_imported_veo_events_with_
     assert event.source == EventSource.IMPORT
     assert event.provider == EventProvider.VEO
     assert event.raw_payload
+    assert event.raw_payload["confidence"] == "high"
     assert event.period is None
+    assert result.summary is not None
+    assert result.summary["zip_file_list"] == ["metadata/events.json"]
+    assert result.summary["detected_metadata_files"] == [{"filename": "metadata/events.json", "type": "json"}]
+    assert result.summary["parser_selected"] == "veo_highlights_json"
+    assert result.summary["total_parsed_provider_rows"] == 1
+    assert result.summary["total_normalized_events"] == 1
+    assert result.summary["unsupported_fields_encountered"] == ["confidence"]
 
 
 @pytest.mark.asyncio

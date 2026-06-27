@@ -23,6 +23,7 @@ class ProviderParseResult:
     raw_metadata: dict[str, Any]
     events: list[ParsedProviderEvent]
     warnings: list[str] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 class ProviderAdapter(Protocol):

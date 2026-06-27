@@ -361,6 +361,62 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
 }
 
+function formatEventName(eventType: string) {
+  return eventType
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function formatMatchTime(event: Event) {
+  const prefix = event.period ? `${event.period} ` : ''
+  return `${prefix}${event.minute}:${String(event.second).padStart(2, '0')}`
+}
+
+function getClipIndex(event: Event): number | null {
+  const value = event.raw_payload?.clip_index
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function formatClipReference(event: Event) {
+  const clipIndex = getClipIndex(event)
+  return clipIndex === null ? null : `Clip #${String(clipIndex).padStart(2, '0')}`
+}
+
+function getOriginalFilename(event: Event) {
+  const value = event.raw_payload?.filename
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function getPeriodSortValue(period?: string | null) {
+  const order: Record<string, number> = { '1H': 1, '2H': 2, ET: 3, P: 4 }
+  return period ? order[period] ?? 50 : 99
+}
+
+function sortEventsForReview(first: Event, second: Event) {
+  const periodDelta = getPeriodSortValue(first.period) - getPeriodSortValue(second.period)
+  if (periodDelta !== 0) return periodDelta
+
+  const clockDelta = first.minute * 60 + first.second - (second.minute * 60 + second.second)
+  if (clockDelta !== 0) return clockDelta
+
+  const firstClip = getClipIndex(first) ?? Number.MAX_SAFE_INTEGER
+  const secondClip = getClipIndex(second) ?? Number.MAX_SAFE_INTEGER
+  if (firstClip !== secondClip) return firstClip - secondClip
+
+  const firstCreated = first.created_at ? new Date(first.created_at).getTime() : Number.MAX_SAFE_INTEGER
+  const secondCreated = second.created_at ? new Date(second.created_at).getTime() : Number.MAX_SAFE_INTEGER
+  if (firstCreated !== secondCreated) return firstCreated - secondCreated
+
+  return first.id.localeCompare(second.id)
+}
+
 function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
   const queryClient = useQueryClient()
   const teamNames = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams])
@@ -370,6 +426,9 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
     enabled: !!matchId,
   })
   const [showForm, setShowForm] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const sortedEvents = useMemo(() => events.slice().sort(sortEventsForReview), [events])
+  const selectedEvent = selectedEventId ? sortedEvents.find((event) => event.id === selectedEventId) ?? null : null
 
   const mutation = useMutation({
     mutationFn: (payload: CreateEventPayload) => createEvent(payload),
@@ -446,42 +505,120 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
 
       {!isLoading && events.length === 0 && (
         <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
-          <p className="text-lg font-semibold text-white">No events imported yet</p>
-          <p className="mt-2">Import match data to see timeline events and player actions here.</p>
+          <p className="text-lg font-semibold text-white">No events have been recorded yet.</p>
+          <p className="mt-2">Import a Veo Highlights ZIP or add events manually.</p>
         </div>
       )}
 
       {!isLoading && events.length > 0 && (
-        <ul className="space-y-2">
-          {events
-            .slice()
-            .sort((first, second) => first.minute - second.minute || first.second - second.second)
-            .map((event) => {
-              const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown team'
-              return (
-                <li key={event.id} className="rounded-3xl border border-border p-4 bg-surface3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3 text-white font-medium">
-                      <Clock size={18} />
-                      <span>{event.minute}:{String(event.second).padStart(2, '0')} - {event.event_type}</span>
-                      <EventSourceBadge event={event} />
-                    </div>
-                    <div className="text-muted text-sm">Team: {teamLabel} {event.player_id ? `- Player: ${event.player_id}` : ''}</div>
-                    {event.notes && <div className="text-muted text-sm">Notes: {event.notes}</div>}
-                  </div>
-                  <div className="text-sm text-muted">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</div>
-                </li>
-              )
-            })}
-        </ul>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <ul className="space-y-3">
+            {sortedEvents.map((event) => {
+                const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
+                const clipReference = formatClipReference(event)
+                const isSelected = selectedEventId === event.id
+                return (
+                  <li key={event.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEventId(event.id)}
+                      className={`w-full rounded-3xl border p-4 text-left transition hover:border-accent hover:bg-surface ${
+                        isSelected ? 'border-accent bg-surface' : 'border-border bg-surface3'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-sm font-semibold text-white">
+                              <Clock size={16} />
+                              {formatMatchTime(event)}
+                            </span>
+                            <EventSourceBadge event={event} />
+                            {clipReference && <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">{clipReference}</span>}
+                          </div>
+                          <div>
+                            <p className="text-lg font-semibold text-white">{formatEventName(event.event_type)}</p>
+                            <p className="mt-1 text-sm text-muted">Team: {teamLabel}</p>
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted">{event.created_at ? formatDateTime(event.created_at) : ''}</div>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
+          </ul>
+
+          <EventDetailsPanel
+            event={selectedEvent}
+            resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+          />
+        </div>
       )}
+    </div>
+  )
+}
+
+function EventDetailsPanel({ event, resolveTeamLabel }: { event: Event | null; resolveTeamLabel: (event: Event) => string }) {
+  if (!event) {
+    return (
+      <aside className="rounded-3xl border border-border bg-surface3 p-5 text-sm text-muted xl:sticky xl:top-6">
+        Select an event to review its details.
+      </aside>
+    )
+  }
+
+  const clipReference = formatClipReference(event)
+  const originalFilename = getOriginalFilename(event)
+
+  return (
+    <aside className="rounded-3xl border border-border bg-surface3 p-5 xl:sticky xl:top-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-sm font-semibold text-white">
+          <Clock size={16} />
+          {formatMatchTime(event)}
+        </span>
+        <EventSourceBadge event={event} />
+      </div>
+
+      <h4 className="mt-4 text-xl font-semibold text-white">{formatEventName(event.event_type)}</h4>
+
+      <div className="mt-5 space-y-3 text-sm">
+        <DetailRow label="Event type" value={formatEventName(event.event_type)} />
+        <DetailRow label="Match time" value={formatMatchTime(event)} />
+        <DetailRow label="Team" value={resolveTeamLabel(event)} />
+        <DetailRow label="Player" value={event.player_id || 'Unknown player'} />
+        <DetailRow label="Provider" value={event.provider === 'veo' ? 'Veo' : event.provider || '-'} />
+        <DetailRow label="Source" value={event.source === 'import' ? 'Import' : 'Manual'} />
+        <DetailRow label="Clip number" value={clipReference || '-'} />
+        <DetailRow label="Original filename" value={originalFilename || '-'} />
+        <DetailRow label="Import Job ID" value={event.import_job_id || '-'} />
+      </div>
+
+      {event.raw_payload && (
+        <details className="mt-5 rounded-2xl border border-border bg-surface p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-white">Developer payload</summary>
+          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-muted">
+            {JSON.stringify(event.raw_payload, null, 2)}
+          </pre>
+        </details>
+      )}
+    </aside>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-[0.2em] text-muted">{label}</p>
+      <p className="mt-1 break-words text-white">{value}</p>
     </div>
   )
 }
 
 function EventSourceBadge({ event }: { event: Event }) {
   if (event.source === 'import' || event.provider === 'veo') {
-    return <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">Veo import</span>
+    return <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">Veo Import</span>
   }
-  return <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">manual</span>
+  return <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">Manual</span>
 }

@@ -99,6 +99,35 @@ async def test_create_team(team_service: TeamService):
 
 
 @pytest.mark.asyncio
+async def test_create_team_with_name_only_uses_setup_defaults(team_service: TeamService):
+    team_service.repository.create = AsyncMock(
+        side_effect=lambda team: make_team(
+            "99999999-9999-9999-9999-999999999999",
+            name=team.name,
+            short_name=team.short_name,
+            city=team.city,
+            country=team.country,
+            stadium=team.stadium,
+            colours=team.colours,
+            badge_url=team.badge_url,
+            club_id=team.club_id,
+        )
+    )
+
+    result = await team_service.create_team(TeamCreate(name="First Team"))
+
+    created_team = team_service.repository.create.call_args.args[0]
+    assert created_team.name == "First Team"
+    assert created_team.short_name == "First Team"
+    assert created_team.city == "Not specified"
+    assert created_team.country == "Not specified"
+    assert created_team.stadium == "Not specified"
+    assert created_team.colours == "Not specified"
+    assert created_team.club_id is None
+    assert result.name == "First Team"
+
+
+@pytest.mark.asyncio
 async def test_update_team(team_service: TeamService):
     team = make_team("66666666-6666-6666-6666-666666666666")
     team_service.repository.get = AsyncMock(return_value=team)

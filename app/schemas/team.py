@@ -6,13 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 class TeamBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    short_name: str = Field(..., min_length=1, max_length=32)
-    city: str = Field(..., min_length=1, max_length=128)
-    country: str = Field(..., min_length=1, max_length=128)
-    stadium: str = Field(..., min_length=1, max_length=128)
-    colours: str = Field(..., min_length=1, max_length=128)
+    short_name: str | None = Field(None, min_length=1, max_length=32)
+    city: str | None = Field(None, min_length=1, max_length=128)
+    country: str | None = Field(None, min_length=1, max_length=128)
+    stadium: str | None = Field(None, min_length=1, max_length=128)
+    colours: str | None = Field(None, min_length=1, max_length=128)
     badge_url: HttpUrl | None = None
-    club_id: UUID
+    club_id: UUID | None = None
 
 
 class TeamCreate(TeamBase):

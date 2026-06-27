@@ -22,11 +22,11 @@ class TeamService:
     async def create_team(self, data: TeamCreate) -> TeamResponse:
         team = Team(
             name=data.name,
-            short_name=data.short_name,
-            city=data.city,
-            country=data.country,
-            stadium=data.stadium,
-            colours=data.colours,
+            short_name=data.short_name or data.name[:32],
+            city=data.city or "Not specified",
+            country=data.country or "Not specified",
+            stadium=data.stadium or "Not specified",
+            colours=data.colours or "Not specified",
             badge_url=data.badge_url,
             club_id=data.club_id,
         )

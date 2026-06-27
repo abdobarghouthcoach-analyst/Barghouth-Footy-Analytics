@@ -17,7 +17,7 @@ class Team(TimestampedUUIDModel):
     stadium: Mapped[str] = mapped_column(String(128), nullable=False)
     colours: Mapped[str] = mapped_column(String(128), nullable=False)
     badge_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    club_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    club_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
     # Future relationships:
     # matches: Mapped[list[Match]] = relationship("Match", secondary="match_teams", back_populates="teams")

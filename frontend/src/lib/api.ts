@@ -6,18 +6,29 @@ export type Competition = {
   id: string
   name: string
   country: string
+  level?: 'first' | 'second' | 'youth'
+  competition_type?: 'league' | 'cup' | 'international'
 }
 
 export type Season = {
   id: string
   name: string
   competition_id: string
+  start_date?: string
+  end_date?: string
+  is_active?: boolean
 }
 
 export type Team = {
   id: string
   name: string
-  short_name: string
+  short_name?: string | null
+  city?: string | null
+  country?: string | null
+  stadium?: string | null
+  colours?: string | null
+  badge_url?: string | null
+  club_id?: string | null
 }
 
 export type Match = {
@@ -87,12 +98,53 @@ export async function getCompetitions(): Promise<Competition[]> {
   return fetcher('/competitions')
 }
 
+export type CreateCompetitionPayload = {
+  name: string
+  country: string
+  level: 'first' | 'second' | 'youth'
+  competition_type: 'league' | 'cup' | 'international'
+}
+
+export async function createCompetition(payload: CreateCompetitionPayload): Promise<Competition> {
+  return fetcher('/competitions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function getSeasons(): Promise<Season[]> {
   return fetcher('/seasons')
 }
 
+export type CreateSeasonPayload = {
+  name: string
+  start_date: string
+  end_date: string
+  competition_id: string
+  is_active: boolean
+}
+
+export async function createSeason(payload: CreateSeasonPayload): Promise<Season> {
+  return fetcher('/seasons', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function getTeams(): Promise<Team[]> {
   return fetcher('/teams')
+}
+
+export type CreateTeamPayload = {
+  name: string
+  short_name?: string | null
+}
+
+export async function createTeam(payload: CreateTeamPayload): Promise<Team> {
+  return fetcher('/teams', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function getMatches(): Promise<Match[]> {

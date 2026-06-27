@@ -115,7 +115,7 @@ export function MatchWorkspacePage() {
         <div className="mt-6">
           {isLoading && <div className="text-muted">Loading match...</div>}
           {!isLoading && active !== 'Events' && active !== 'Import' && <TabContent tab={active} match={match ?? null} />}
-          {!isLoading && active === 'Import' && <ImportTab matchId={matchId} />}
+          {!isLoading && active === 'Import' && <ImportTab matchId={matchId} onOpenEvents={() => setActive('Events')} />}
           {!isLoading && active === 'Events' && match && <TimelineTab matchId={match.id} teams={teams} />}
         </div>
       </div>
@@ -132,7 +132,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ImportTab({ matchId }: { matchId: string }) {
+function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: () => void }) {
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
   const { data: imports = [], isLoading } = useQuery<ImportJob[]>({
@@ -140,6 +140,7 @@ function ImportTab({ matchId }: { matchId: string }) {
     queryFn: () => getMatchImports(matchId),
   })
   const latestImport = imports[0]
+  const activeImport = latestImport
   const mutation = useMutation({
     mutationFn: (selectedFile: File) => uploadVeoHighlightsImport(matchId, selectedFile),
     onSuccess() {
@@ -160,76 +161,46 @@ function ImportTab({ matchId }: { matchId: string }) {
       <div className="rounded-3xl border border-border p-6 bg-surface3 shadow-card">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-white">Veo Highlights ZIP</h3>
-            <p className="text-muted mt-2">Upload a Veo highlights package to create import-tracked match events.</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-accent2">Veo Highlights ZIP</p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">Import Veo Highlights</h3>
+            <p className="text-muted mt-3 max-w-3xl">
+              BFA imports highlight metadata from a Veo ZIP and creates match events linked to this workspace. The provider is fixed to Veo Highlights ZIP for this slice.
+            </p>
           </div>
-          {latestImport && <ImportStatusBadge status={latestImport.status} />}
+          {activeImport && <ImportStatusBadge status={activeImport.status} />}
         </div>
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <label className="block">
-            <span className="label">Veo Highlights ZIP</span>
-            <input type="file" accept=".zip,application/zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input" />
+            <span className="label">Select Veo ZIP</span>
+            <input type="file" accept=".zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input" />
           </label>
-          {file && <div className="text-sm text-muted">Selected: {file.name}</div>}
-          <button className="btn-primary" type="submit" disabled={!file || mutation.isPending}>
-            {mutation.isPending ? 'Uploading...' : 'Upload ZIP'}
-          </button>
+          <SelectedFileSummary file={file} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button className="btn-primary" type="submit" disabled={!file || mutation.isPending}>
+              {mutation.isPending ? 'Uploading and importing...' : 'Upload ZIP'}
+            </button>
+            {mutation.isPending && <span className="text-sm text-muted">Import is running. Keep this tab open while BFA stores and reads the ZIP.</span>}
+          </div>
         </form>
 
-        {mutation.error && <div className="mt-4 rounded-3xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">{(mutation.error as Error).message}</div>}
-
-        {latestImport && (
-          <div className="mt-6 rounded-3xl border border-border bg-surface p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm text-muted">Latest import</p>
-                <p className="mt-1 font-semibold text-white">{latestImport.original_filename || latestImport.filename}</p>
-              </div>
-              <div className="text-sm text-muted">
-                {latestImport.imported_events_count} event{latestImport.imported_events_count === 1 ? '' : 's'} imported
-              </div>
-            </div>
-            {latestImport.summary && (
-              <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-3">
-                <SummaryValue label="Message" value={String(latestImport.summary.message ?? 'No summary message')} />
-                <SummaryValue label="Parsed" value={String(latestImport.summary.events_parsed ?? 0)} />
-                <SummaryValue label="Warnings" value={String(latestImport.warnings_count ?? 0)} />
-              </div>
-            )}
-            {latestImport.error_message && <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{latestImport.error_message}</div>}
-            {Array.isArray(latestImport.summary?.warnings) && latestImport.summary.warnings.length > 0 && (
-              <ul className="mt-4 space-y-2 text-sm text-yellow-100">
-                {latestImport.summary.warnings.map((warning, index) => (
-                  <li key={`${warning}-${index}`} className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3">
-                    {String(warning)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {mutation.error && <ImportApiError error={mutation.error as Error} />}
+        {activeImport && <ImportSummary job={activeImport} onOpenEvents={onOpenEvents} />}
       </div>
 
       <div className="rounded-3xl border border-border p-6 bg-surface3 shadow-card">
-        <h4 className="text-white font-medium">Import history</h4>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="text-white font-medium">Import history</h4>
+            <p className="mt-1 text-sm text-muted">Recent Veo import jobs for this match.</p>
+          </div>
+        </div>
         {isLoading && <div className="mt-4 text-muted">Loading imports...</div>}
         {!isLoading && imports.length === 0 && <div className="mt-4 text-muted">No imports for this match yet.</div>}
         {!isLoading && imports.length > 0 && (
           <ul className="mt-4 space-y-3">
             {imports.map((item) => (
-              <li key={item.id} className="rounded-3xl border border-border bg-surface p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="font-semibold text-white">{item.original_filename || item.filename}</p>
-                    <p className="text-sm text-muted">{new Date(item.created_at).toLocaleString()}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ImportStatusBadge status={item.status} />
-                    <span className="rounded-full bg-background px-3 py-1 text-sm text-muted">{item.imported_events_count} events</span>
-                  </div>
-                </div>
-              </li>
+              <ImportHistoryItem key={item.id} job={item} />
             ))}
           </ul>
         )}
@@ -240,7 +211,7 @@ function ImportTab({ matchId }: { matchId: string }) {
 
 function ImportStatusBadge({ status }: { status: ImportJob['status'] }) {
   const className = status === 'completed' ? 'bg-green-500 text-black' : status === 'failed' ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'
-  return <span className={`rounded-full px-3 py-1 text-sm font-semibold ${className}`}>{status}</span>
+  return <span className={`rounded-full px-3 py-1 text-sm font-semibold capitalize ${className}`}>{status}</span>
 }
 
 function SummaryValue({ label, value }: { label: string; value: string }) {
@@ -250,6 +221,144 @@ function SummaryValue({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-white">{value}</p>
     </div>
   )
+}
+
+function SelectedFileSummary({ file }: { file: File | null }) {
+  if (!file) {
+    return <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">No ZIP selected yet.</div>
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-muted">Selected file</p>
+      <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-semibold text-white">{file.name}</span>
+        <span className="text-sm text-muted">{formatFileSize(file.size)}</span>
+      </div>
+    </div>
+  )
+}
+
+function ImportApiError({ error }: { error: Error }) {
+  return (
+    <div className="mt-4 rounded-3xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+      <p className="font-semibold text-white">Upload could not start.</p>
+      <p className="mt-1">BFA did not receive an import job from the API. Technical detail: {error.message}</p>
+    </div>
+  )
+}
+
+function ImportSummary({ job, onOpenEvents }: { job: ImportJob; onOpenEvents: () => void }) {
+  const summary = getImportSummary(job)
+  const completedWithZero = job.status === 'completed' && summary.eventsCreated === 0
+  const warnings = getWarnings(job)
+
+  return (
+    <div className={`mt-6 rounded-3xl border p-5 ${job.status === 'failed' ? 'border-red-500/40 bg-red-500/10' : completedWithZero ? 'border-yellow-500/40 bg-yellow-500/10' : 'border-border bg-surface'}`}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm text-muted">Latest import</p>
+          <p className="mt-1 font-semibold text-white">{job.original_filename || job.filename}</p>
+          <p className="mt-2 text-sm text-muted">Provider: Veo Highlights ZIP</p>
+        </div>
+        <ImportStatusBadge status={job.status} />
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-4">
+        <SummaryValue label="Status" value={job.status} />
+        <SummaryValue label="Events created" value={String(summary.eventsCreated)} />
+        {summary.eventsSkipped !== null && <SummaryValue label="Events skipped" value={String(summary.eventsSkipped)} />}
+        <SummaryValue label="Warnings" value={String(warnings.length || job.warnings_count || 0)} />
+      </div>
+
+      {job.status === 'completed' && summary.eventsCreated > 0 && (
+        <div className="mt-4 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-100">
+          <p className="font-semibold text-white">Import completed.</p>
+          <p className="mt-1">Imported events are now available in the Events tab.</p>
+          <button type="button" className="btn-secondary mt-3" onClick={onOpenEvents}>
+            Open Events tab
+          </button>
+        </div>
+      )}
+
+      {completedWithZero && (
+        <div className="mt-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+          Import completed, but 0 events were created. Review warnings and source metadata before continuing.
+        </div>
+      )}
+
+      {job.status === 'failed' && (
+        <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          <p className="font-semibold text-white">Import failed.</p>
+          <p className="mt-1">{job.error_message || 'BFA could not import events from this ZIP.'}</p>
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <ul className="mt-4 space-y-2 text-sm text-yellow-100">
+          {warnings.map((warning, index) => (
+            <li key={`${warning}-${index}`} className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3">
+              {warning}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ImportHistoryItem({ job }: { job: ImportJob }) {
+  const summary = getImportSummary(job)
+  const warnings = getWarnings(job)
+  return (
+    <li className="rounded-3xl border border-border bg-surface p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="font-semibold text-white">{job.original_filename || job.filename}</p>
+          <p className="mt-1 text-sm text-muted">Provider: {job.provider === 'veo' ? 'Veo Highlights ZIP' : job.provider}</p>
+          <p className="mt-1 text-sm text-muted">Created: {formatDateTime(job.created_at)}</p>
+          <p className="mt-1 text-sm text-muted">Completed: {job.completed_at ? formatDateTime(job.completed_at) : '-'}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ImportStatusBadge status={job.status} />
+          <span className="rounded-full bg-background px-3 py-1 text-sm text-muted">{summary.eventsCreated} events</span>
+          {(warnings.length > 0 || job.error_message) && (
+            <span className={`rounded-full px-3 py-1 text-sm ${job.error_message ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'}`}>
+              {job.error_message ? 'Error' : `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`}
+            </span>
+          )}
+        </div>
+      </div>
+    </li>
+  )
+}
+
+function getImportSummary(job: ImportJob) {
+  const summary = job.summary ?? {}
+  return {
+    eventsCreated: toNumber(summary.events_created ?? summary.events_imported ?? job.imported_events_count),
+    eventsSkipped: summary.events_skipped === undefined ? null : toNumber(summary.events_skipped),
+  }
+}
+
+function getWarnings(job: ImportJob): string[] {
+  const warnings = job.summary?.warnings
+  return Array.isArray(warnings) ? warnings.map((warning) => String(warning)) : []
+}
+
+function toNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  const kilobytes = bytes / 1024
+  if (kilobytes < 1024) return `${kilobytes.toFixed(1)} KB`
+  return `${(kilobytes / 1024).toFixed(1)} MB`
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString()
 }
 
 function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
@@ -368,7 +477,7 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
 
 function EventSourceBadge({ event }: { event: Event }) {
   if (event.source === 'import' || event.provider === 'veo') {
-    return <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">imported veo</span>
+    return <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black">Veo import</span>
   }
   return <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">manual</span>
 }

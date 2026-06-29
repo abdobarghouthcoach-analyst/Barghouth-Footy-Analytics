@@ -8,12 +8,14 @@ import {
   getMatch,
   getMatchImports,
   getTeams,
+  updateEvent,
   uploadVeoHighlightsImport,
   CreateEventPayload,
   Event,
   ImportJob,
   Match,
   Team,
+  UpdateEventPayload,
 } from '../lib/api'
 
 function StatusBadge({ status }: { status?: string }) {
@@ -116,7 +118,7 @@ export function MatchWorkspacePage() {
           {isLoading && <div className="text-muted">Loading match...</div>}
           {!isLoading && active !== 'Events' && active !== 'Import' && <TabContent tab={active} match={match ?? null} />}
           {!isLoading && active === 'Import' && <ImportTab matchId={matchId} onOpenEvents={() => setActive('Events')} />}
-          {!isLoading && active === 'Events' && match && <TimelineTab matchId={match.id} teams={teams} />}
+          {!isLoading && active === 'Events' && match && <TimelineTab match={match} teams={teams} />}
         </div>
       </div>
     </section>
@@ -417,9 +419,24 @@ function sortEventsForReview(first: Event, second: Event) {
   return first.id.localeCompare(second.id)
 }
 
-function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
+const EVENT_TYPE_OPTIONS = ['goal', 'shot_on_goal', 'highlight', 'pass', 'cross', 'foul', 'save', 'corner', 'free_kick']
+
+type TeamOption = {
+  id: string
+  label: string
+}
+
+function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
+  const matchId = match.id
   const queryClient = useQueryClient()
   const teamNames = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams])
+  const teamOptions = useMemo<TeamOption[]>(
+    () => [
+      { id: match.home_team_id, label: teamNames.get(match.home_team_id) ?? 'Home Team' },
+      { id: match.away_team_id, label: teamNames.get(match.away_team_id) ?? 'Away Team' },
+    ],
+    [match.away_team_id, match.home_team_id, teamNames],
+  )
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ['matches', matchId, 'events'],
     queryFn: () => getEvents(matchId),
@@ -435,6 +452,14 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
       setShowForm(false)
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ eventId, payload }: { eventId: string; payload: UpdateEventPayload }) => updateEvent(eventId, payload),
+    onSuccess(updated) {
+      setSelectedEventId(updated.id)
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
     },
   })
 
@@ -552,6 +577,17 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
           <EventDetailsPanel
             event={selectedEvent}
             resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+            teamOptions={teamOptions}
+            onSave={(eventId, payload, onSuccess) => {
+              updateMutation.mutate(
+                { eventId, payload },
+                {
+                  onSuccess,
+                },
+              )
+            }}
+            isSaving={updateMutation.isPending}
+            error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
           />
         </div>
       )}
@@ -559,7 +595,24 @@ function TimelineTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
   )
 }
 
-function EventDetailsPanel({ event, resolveTeamLabel }: { event: Event | null; resolveTeamLabel: (event: Event) => string }) {
+function EventDetailsPanel({
+  event,
+  resolveTeamLabel,
+  teamOptions,
+  onSave,
+  isSaving,
+  error,
+}: {
+  event: Event | null
+  resolveTeamLabel: (event: Event) => string
+  teamOptions: TeamOption[]
+  onSave: (eventId: string, payload: UpdateEventPayload, onSuccess: () => void) => void
+  isSaving: boolean
+  error: string | null
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [form, setForm] = useState({ event_type: '', team_id: '', minute: '0', second: '0', notes: '' })
+
   if (!event) {
     return (
       <aside className="rounded-3xl border border-border bg-surface3 p-5 text-sm text-muted xl:sticky xl:top-6">
@@ -568,32 +621,126 @@ function EventDetailsPanel({ event, resolveTeamLabel }: { event: Event | null; r
     )
   }
 
-  const clipReference = formatClipReference(event)
-  const originalFilename = getOriginalFilename(event)
+  const currentEvent = event
+  const clipReference = formatClipReference(currentEvent)
+  const originalFilename = getOriginalFilename(currentEvent)
+  const eventTypeOptions = EVENT_TYPE_OPTIONS.includes(currentEvent.event_type) ? EVENT_TYPE_OPTIONS : [currentEvent.event_type, ...EVENT_TYPE_OPTIONS]
+
+  function startEdit() {
+    setForm({
+      event_type: currentEvent.event_type,
+      team_id: currentEvent.team_id ?? '',
+      minute: String(currentEvent.minute),
+      second: String(currentEvent.second),
+      notes: currentEvent.notes ?? '',
+    })
+    setIsEditing(true)
+  }
+
+  function cancelEdit() {
+    setIsEditing(false)
+  }
+
+  function submitEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    onSave(
+      currentEvent.id,
+      {
+        event_type: form.event_type,
+        team_id: form.team_id || null,
+        minute: Number(form.minute),
+        second: Number(form.second),
+        notes: form.notes.trim() ? form.notes : null,
+      },
+      () => setIsEditing(false),
+    )
+  }
 
   return (
     <aside className="rounded-3xl border border-border bg-surface3 p-5 xl:sticky xl:top-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-sm font-semibold text-white">
-          <Clock size={16} />
-          {formatMatchTime(event)}
-        </span>
-        <EventSourceBadge event={event} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-sm font-semibold text-white">
+            <Clock size={16} />
+            {formatMatchTime(event)}
+          </span>
+          <EventSourceBadge event={event} />
+        </div>
+        {!isEditing && (
+          <button type="button" className="btn-secondary" onClick={startEdit}>
+            Edit
+          </button>
+        )}
       </div>
 
       <h4 className="mt-4 text-xl font-semibold text-white">{formatEventName(event.event_type)}</h4>
 
-      <div className="mt-5 space-y-3 text-sm">
-        <DetailRow label="Event type" value={formatEventName(event.event_type)} />
-        <DetailRow label="Match time" value={formatMatchTime(event)} />
-        <DetailRow label="Team" value={resolveTeamLabel(event)} />
-        <DetailRow label="Player" value={event.player_id || 'Unknown player'} />
-        <DetailRow label="Provider" value={event.provider === 'veo' ? 'Veo' : event.provider || '-'} />
-        <DetailRow label="Source" value={event.source === 'import' ? 'Import' : 'Manual'} />
-        <DetailRow label="Clip number" value={clipReference || '-'} />
-        <DetailRow label="Original filename" value={originalFilename || '-'} />
-        <DetailRow label="Import Job ID" value={event.import_job_id || '-'} />
-      </div>
+      {isEditing ? (
+        <form onSubmit={submitEdit} className="mt-5 space-y-4">
+          <label className="block">
+            <span className="label">Event type</span>
+            <select className="input" value={form.event_type} onChange={(e) => setForm((current) => ({ ...current, event_type: e.target.value }))}>
+              {eventTypeOptions.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {formatEventName(eventType)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="label">Team</span>
+            <select className="input" value={form.team_id} onChange={(e) => setForm((current) => ({ ...current, team_id: e.target.value }))}>
+              <option value="">Unknown Team</option>
+              {teamOptions.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="label">Minute</span>
+              <input className="input" type="number" min={0} value={form.minute} onChange={(e) => setForm((current) => ({ ...current, minute: e.target.value }))} required />
+            </label>
+            <label className="block">
+              <span className="label">Second</span>
+              <input className="input" type="number" min={0} max={59} value={form.second} onChange={(e) => setForm((current) => ({ ...current, second: e.target.value }))} required />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="label">Notes</span>
+            <textarea className="input h-28" value={form.notes} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))} />
+          </label>
+
+          {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
+
+          <div className="flex flex-wrap gap-3">
+            <button className="btn-primary" type="submit" disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button className="btn-secondary" type="button" onClick={cancelEdit} disabled={isSaving}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-5 space-y-3 text-sm">
+          <DetailRow label="Event type" value={formatEventName(event.event_type)} />
+          <DetailRow label="Match time" value={formatMatchTime(event)} />
+          <DetailRow label="Team" value={resolveTeamLabel(event)} />
+          <DetailRow label="Player" value={event.player_id || 'Unknown player'} />
+          <DetailRow label="Provider" value={event.provider === 'veo' ? 'Veo' : event.provider || '-'} />
+          <DetailRow label="Source" value={event.source === 'import' ? 'Import' : 'Manual'} />
+          <DetailRow label="Clip number" value={clipReference || '-'} />
+          <DetailRow label="Original filename" value={originalFilename || '-'} />
+          <DetailRow label="Import Job ID" value={event.import_job_id || '-'} />
+          <DetailRow label="Edited" value={event.edited_at ? formatDateTime(event.edited_at) : '-'} />
+        </div>
+      )}
 
       {event.raw_payload && (
         <details className="mt-5 rounded-2xl border border-border bg-surface p-4">

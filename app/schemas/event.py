@@ -33,24 +33,13 @@ class EventCreate(EventBase):
 
 
 class EventUpdate(BaseModel):
-    match_id: UUID | None = None
+    model_config = ConfigDict(extra="forbid")
+
     team_id: UUID | None = None
-    player_id: UUID | None = None
     event_type: str | None = Field(None, min_length=1, max_length=64)
     minute: int | None = Field(None, ge=0)
     second: int | None = Field(None, ge=0, le=59)
-    period: EventPeriod | None = None
-    x_coordinate: float | None = Field(None, ge=0.0, le=1.0)
-    y_coordinate: float | None = Field(None, ge=0.0, le=1.0)
     notes: str | None = Field(None, max_length=2000)
-    tags: dict | None = None
-    source_provider: SourceProvider | None = None
-    source_event_id: str | None = Field(None, max_length=128)
-    import_job_id: UUID | None = None
-    source: EventSource | None = None
-    provider: EventProvider | None = None
-    provider_event_id: str | None = Field(None, max_length=128)
-    raw_payload: dict | None = None
 
 
 class EventResponse(EventBase):
@@ -59,3 +48,4 @@ class EventResponse(EventBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    edited_at: datetime | None = None

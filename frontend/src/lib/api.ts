@@ -63,6 +63,7 @@ export type Event = {
   notes?: string | null
   raw_payload?: Record<string, unknown> | null
   created_at?: string
+  edited_at?: string | null
 }
 
 export type CreateEventPayload = {
@@ -98,6 +99,14 @@ export type ImportJob = {
 
 export async function getCompetitions(): Promise<Competition[]> {
   return fetcher('/competitions/')
+}
+
+export type UpdateEventPayload = {
+  team_id?: string | null
+  event_type?: string
+  minute?: number
+  second?: number
+  notes?: string | null
 }
 
 export type CreateCompetitionPayload = {
@@ -191,6 +200,13 @@ export async function getEvents(matchId: string): Promise<Event[]> {
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {
   return fetcher('/events/', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateEvent(eventId: string, payload: UpdateEventPayload): Promise<Event> {
+  return fetcher(`/events/${eventId}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }

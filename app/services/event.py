@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,42 +51,17 @@ class EventService:
         if item is None:
             return None
 
-        if data.match_id is not None:
-            item.match_id = data.match_id
-        if data.team_id is not None:
-            item.team_id = data.team_id
-        if data.player_id is not None:
-            item.player_id = data.player_id
-        if data.event_type is not None:
-            item.event_type = data.event_type
-        if data.minute is not None:
-            item.minute = data.minute
-        if data.second is not None:
-            item.second = data.second
-        if data.period is not None:
-            item.period = data.period
-        if data.x_coordinate is not None:
-            item.x_coordinate = data.x_coordinate
-        if data.y_coordinate is not None:
-            item.y_coordinate = data.y_coordinate
-        if data.notes is not None:
-            item.notes = data.notes
-        if data.tags is not None:
-            item.tags = data.tags
-        if data.source_provider is not None:
-            item.source_provider = data.source_provider
-        if data.source_event_id is not None:
-            item.source_event_id = data.source_event_id
-        if data.import_job_id is not None:
-            item.import_job_id = data.import_job_id
-        if data.source is not None:
-            item.source = data.source
-        if data.provider is not None:
-            item.provider = data.provider
-        if data.provider_event_id is not None:
-            item.provider_event_id = data.provider_event_id
-        if data.raw_payload is not None:
-            item.raw_payload = data.raw_payload
+        changed = False
+        for field_name in ("team_id", "event_type", "minute", "second", "notes"):
+            if field_name not in data.model_fields_set:
+                continue
+            value = getattr(data, field_name)
+            if getattr(item, field_name) != value:
+                setattr(item, field_name, value)
+                changed = True
+
+        if changed:
+            item.edited_at = datetime.now(timezone.utc)
 
         item = await self.repository.update(item)
         return EventResponse.model_validate(item)

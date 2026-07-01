@@ -39,6 +39,7 @@ class ImportJobUpdate(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     completed_at: datetime | None = None
+    deleted_at: datetime | None = None
     imported_events_count: int | None = None
     warnings_count: int | None = None
     error_message: str | None = Field(None, max_length=2000)
@@ -57,6 +58,7 @@ class ImportJobResponse(ImportJobBase):
     started_at: datetime | None
     finished_at: datetime | None
     completed_at: datetime | None
+    deleted_at: datetime | None
     imported_events_count: int
     warnings_count: int
     error_message: str | None

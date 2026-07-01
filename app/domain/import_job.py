@@ -18,3 +18,4 @@ class ImportStatus(str, Enum):
     PERSISTING = "persisting"
     COMPLETED = "completed"
     FAILED = "failed"
+    DELETED = "deleted"

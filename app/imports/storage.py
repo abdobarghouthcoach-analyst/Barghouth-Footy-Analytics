@@ -14,6 +14,14 @@ class ImportStorage:
     def job_dir(self, match_id: UUID, import_job_id: UUID) -> Path:
         return self.root / str(match_id) / str(import_job_id)
 
+    def delete_job_files(self, *, match_id: UUID, import_job_id: UUID) -> None:
+        root = self.root.resolve()
+        directory = self.job_dir(match_id, import_job_id).resolve()
+        if root != directory and root not in directory.parents:
+            raise ValueError("Import storage path is outside the configured root.")
+        if directory.exists():
+            shutil.rmtree(directory)
+
     async def store_original_zip(self, *, match_id: UUID, import_job_id: UUID, file: UploadFile) -> tuple[Path, int, str]:
         directory = self.job_dir(match_id, import_job_id)
         directory.mkdir(parents=True, exist_ok=True)

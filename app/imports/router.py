@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
 from app.imports.schemas import ImportUploadResponse
-from app.imports.service import ImportEngineService, ImportValidationError, MatchNotFoundError
+from app.imports.service import ImportEngineService, ImportJobNotFoundError, ImportValidationError, MatchNotFoundError
 from app.schemas.import_job import ImportJobResponse
 
 router = APIRouter(tags=["Imports"])
@@ -53,3 +53,14 @@ async def get_import_job(
     if import_job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import job not found")
     return import_job
+
+
+@router.delete("/import-jobs/{import_job_id}", response_model=ImportJobResponse)
+async def delete_import_job(
+    import_job_id: UUID,
+    service: ImportEngineService = Depends(get_import_service),
+) -> ImportJobResponse:
+    try:
+        return await service.delete_import_job(import_job_id)
+    except ImportJobNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

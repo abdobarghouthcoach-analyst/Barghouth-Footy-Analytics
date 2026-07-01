@@ -29,6 +29,10 @@ class ImportValidationError(ValueError):
     pass
 
 
+class ImportJobNotFoundError(ValueError):
+    pass
+
+
 class ImportEngineService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -251,6 +255,30 @@ class ImportEngineService:
     async def get_import_job(self, import_job_id: UUID) -> ImportJobResponse | None:
         import_job = await self.session.get(ImportJob, import_job_id)
         return ImportJobResponse.model_validate(import_job) if import_job else None
+
+    async def delete_import_job(self, import_job_id: UUID) -> ImportJobResponse:
+        import_job = await self.session.get(ImportJob, import_job_id)
+        if import_job is None:
+            raise ImportJobNotFoundError("Import job not found")
+
+        result = await self.session.execute(select(Event).where(Event.import_job_id == import_job_id))
+        imported_events = list(result.scalars().all())
+        for event in imported_events:
+            await self.session.delete(event)
+
+        self.storage.delete_job_files(match_id=import_job.match_id, import_job_id=import_job.id)
+
+        import_job.status = ImportStatus.DELETED
+        import_job.deleted_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        await self.session.refresh(import_job)
+        logger.info(
+            "import_job.deleted",
+            import_job_id=str(import_job_id),
+            match_id=str(import_job.match_id),
+            events_deleted=len(imported_events),
+        )
+        return ImportJobResponse.model_validate(import_job)
 
     async def _mark(self, import_job: ImportJob, status: ImportStatus) -> None:
         import_job.status = status

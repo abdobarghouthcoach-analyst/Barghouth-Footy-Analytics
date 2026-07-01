@@ -81,7 +81,7 @@ export type ImportJob = {
   id: string
   match_id: string
   provider: 'veo' | 'csv' | 'other'
-  status: 'created' | 'uploaded' | 'extracting' | 'parsing' | 'normalizing' | 'persisting' | 'completed' | 'failed'
+  status: 'created' | 'uploaded' | 'extracting' | 'parsing' | 'normalizing' | 'persisting' | 'completed' | 'failed' | 'deleted'
   original_filename: string
   filename?: string
   stored_file_path?: string | null
@@ -91,6 +91,7 @@ export type ImportJob = {
   summary?: Record<string, unknown> | null
   error_message?: string | null
   completed_at?: string | null
+  deleted_at?: string | null
   imported_events_count: number
   warnings_count: number
   created_at: string
@@ -213,6 +214,12 @@ export async function updateEvent(eventId: string, payload: UpdateEventPayload):
 
 export async function getMatchImports(matchId: string): Promise<ImportJob[]> {
   return fetcher(`/matches/${matchId}/imports`)
+}
+
+export async function deleteImportJob(importJobId: string): Promise<ImportJob> {
+  return fetcher(`/import-jobs/${importJobId}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function uploadVeoHighlightsImport(matchId: string, file: File): Promise<ImportJob> {

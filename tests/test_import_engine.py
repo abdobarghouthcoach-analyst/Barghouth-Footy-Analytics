@@ -74,6 +74,21 @@ class FakeImportSession:
     async def refresh(self, item):
         self._stamp(item)
 
+    async def execute(self, statement):
+        entity = statement.column_descriptions[0].get("entity")
+        if entity is Event:
+            target_import_job_id = self._first_where_value(statement)
+            return FakeResult([event for event in self.events if event.import_job_id == target_import_job_id])
+        if entity is ImportJob:
+            return FakeResult(self.import_jobs)
+        return FakeResult([])
+
+    async def delete(self, item):
+        if isinstance(item, Event):
+            self.events = [event for event in self.events if event.id != item.id]
+            return
+        raise TypeError(f"Unsupported item type: {type(item)!r}")
+
     async def rollback(self):
         self.rollback_count += 1
         self.pending_events = []
@@ -83,6 +98,24 @@ class FakeImportSession:
         if getattr(item, "created_at", None) is None:
             item.created_at = now
         item.updated_at = now
+
+    def _first_where_value(self, statement):
+        for criterion in getattr(statement, "_where_criteria", ()):
+            value = getattr(getattr(criterion, "right", None), "value", None)
+            if value is not None:
+                return value
+        return None
+
+
+class FakeResult:
+    def __init__(self, items):
+        self.items = items
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self.items
 
 
 def upload(filename: str, content: bytes) -> UploadFile:
@@ -358,3 +391,42 @@ async def test_event_persistence_failure_marks_job_failed_and_rolls_back_events(
     assert session.events == []
     assert session.pending_events == []
     assert session.rollback_count == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_import_job_removes_imported_events_and_files_but_preserves_job(tmp_path, monkeypatch):
+    session = FakeImportSession()
+    importer = service(tmp_path, session, monkeypatch)
+    content = zip_bytes(
+        {
+            "clips/01 000124_-_Shot_on_goal.mp4": b"video",
+            "clips/02 000500_-_Goal.mp4": b"video",
+        }
+    )
+    result = await importer.import_veo_highlights(match_id=MATCH_ID, file=upload("veo-real.zip", content))
+    import_job_id = result.id
+    manual_event = Event(
+        id=UUID("44444444-4444-4444-4444-444444444444"),
+        match_id=MATCH_ID,
+        team_id=HOME_TEAM_ID,
+        event_type="manual_note",
+        minute=90,
+        second=0,
+        source=EventSource.MANUAL,
+        import_job_id=None,
+    )
+    session.events.append(manual_event)
+    job_dir = tmp_path / "imports" / str(MATCH_ID) / str(import_job_id)
+
+    deleted = await importer.delete_import_job(import_job_id)
+
+    assert deleted.status == ImportStatus.DELETED
+    assert deleted.deleted_at is not None
+    assert deleted.id == import_job_id
+    assert deleted.checksum_sha256 == result.checksum_sha256
+    assert deleted.original_filename == "veo-real.zip"
+    assert deleted.summary == result.summary
+    assert session.import_jobs[0].status == ImportStatus.DELETED
+    assert session.import_jobs[0].deleted_at is not None
+    assert session.events == [manual_event]
+    assert not job_dir.exists()

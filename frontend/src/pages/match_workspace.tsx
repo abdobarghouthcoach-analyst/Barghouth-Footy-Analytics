@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
 import {
   createEvent,
+  deleteImportJob,
   getEvents,
   getMatch,
   getMatchImports,
@@ -151,6 +152,13 @@ function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: (
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'imports'] })
     },
   })
+  const deleteMutation = useMutation({
+    mutationFn: (importJobId: string) => deleteImportJob(importJobId),
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'imports'] })
+    },
+  })
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -202,9 +210,25 @@ function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: (
         {!isLoading && imports.length > 0 && (
           <ul className="mt-4 space-y-3">
             {imports.map((item) => (
-              <ImportHistoryItem key={item.id} job={item} />
+              <ImportHistoryItem
+                key={item.id}
+                job={item}
+                isDeleting={deleteMutation.isPending}
+                onDelete={(job) => {
+                  const count = getImportSummary(job).eventsCreated
+                  const confirmed = window.confirm(
+                    `Delete this import?\n\n${count} imported events will be removed.\n\nManual events will NOT be affected.\n\nThis action cannot be undone.`,
+                  )
+                  if (confirmed) deleteMutation.mutate(job.id)
+                }}
+              />
             ))}
           </ul>
+        )}
+        {deleteMutation.error && (
+          <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+            {(deleteMutation.error as Error).message}
+          </div>
         )}
       </div>
     </div>
@@ -212,7 +236,7 @@ function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: (
 }
 
 function ImportStatusBadge({ status }: { status: ImportJob['status'] }) {
-  const className = status === 'completed' ? 'bg-green-500 text-black' : status === 'failed' ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'
+  const className = status === 'completed' ? 'bg-green-500 text-black' : status === 'failed' ? 'bg-red-600 text-white' : status === 'deleted' ? 'bg-background text-muted' : 'bg-yellow-500 text-black'
   return <span className={`rounded-full px-3 py-1 text-sm font-semibold capitalize ${className}`}>{status}</span>
 }
 
@@ -309,9 +333,11 @@ function ImportSummary({ job, onOpenEvents }: { job: ImportJob; onOpenEvents: ()
   )
 }
 
-function ImportHistoryItem({ job }: { job: ImportJob }) {
+function ImportHistoryItem({ job, onDelete, isDeleting }: { job: ImportJob; onDelete: (job: ImportJob) => void; isDeleting: boolean }) {
   const summary = getImportSummary(job)
   const warnings = getWarnings(job)
+  const isDeleted = job.status === 'deleted'
+  const canDelete = job.status === 'completed'
   return (
     <li className="rounded-3xl border border-border bg-surface p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -320,14 +346,22 @@ function ImportHistoryItem({ job }: { job: ImportJob }) {
           <p className="mt-1 text-sm text-muted">Provider: {job.provider === 'veo' ? 'Veo Highlights ZIP' : job.provider}</p>
           <p className="mt-1 text-sm text-muted">Created: {formatDateTime(job.created_at)}</p>
           <p className="mt-1 text-sm text-muted">Completed: {job.completed_at ? formatDateTime(job.completed_at) : '-'}</p>
+          {isDeleted && <p className="mt-1 text-sm text-muted">Deleted: {job.deleted_at ? formatDateTime(job.deleted_at) : '-'}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ImportStatusBadge status={job.status} />
-          <span className="rounded-full bg-background px-3 py-1 text-sm text-muted">{summary.eventsCreated} events</span>
-          {(warnings.length > 0 || job.error_message) && (
-            <span className={`rounded-full px-3 py-1 text-sm ${job.error_message ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'}`}>
-              {job.error_message ? 'Error' : `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`}
-            </span>
+        <div className="flex flex-col gap-3 md:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportStatusBadge status={job.status} />
+            <span className="rounded-full bg-background px-3 py-1 text-sm text-muted">{summary.eventsCreated} events</span>
+            {(warnings.length > 0 || job.error_message) && (
+              <span className={`rounded-full px-3 py-1 text-sm ${job.error_message ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'}`}>
+                {job.error_message ? 'Error' : `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`}
+              </span>
+            )}
+          </div>
+          {canDelete && (
+            <button type="button" className="btn-secondary" onClick={() => onDelete(job)} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete Import'}
+            </button>
           )}
         </div>
       </div>

@@ -30,6 +30,7 @@ class ImportJobService:
                 "started_at": self._clean_attr(import_job, "started_at"),
                 "finished_at": self._clean_attr(import_job, "finished_at"),
                 "completed_at": self._clean_attr(import_job, "completed_at"),
+                "deleted_at": self._clean_attr(import_job, "deleted_at"),
                 "imported_events_count": self._clean_attr(import_job, "imported_events_count") or 0,
                 "warnings_count": self._clean_attr(import_job, "warnings_count") or 0,
                 "error_message": self._clean_attr(import_job, "error_message"),

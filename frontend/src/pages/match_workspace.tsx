@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
@@ -487,9 +487,9 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
     enabled: !!matchId,
   })
   const [showForm, setShowForm] = useState(false)
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const sortedEvents = useMemo(() => events.slice().sort(sortEventsForReview), [events])
-  const selectedEvent = selectedEventId ? sortedEvents.find((event) => event.id === selectedEventId) ?? null : null
+  const videoSync = useEventVideoSync(sortedEvents, videoClips)
+  const selectedEvent = videoSync.selectedEvent
 
   const mutation = useMutation({
     mutationFn: (payload: CreateEventPayload) => createEvent(payload),
@@ -502,7 +502,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   const updateMutation = useMutation({
     mutationFn: ({ eventId, payload }: { eventId: string; payload: UpdateEventPayload }) => updateEvent(eventId, payload),
     onSuccess(updated) {
-      setSelectedEventId(updated.id)
+      videoSync.selectEvent(updated.id)
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
     },
   })
@@ -585,12 +585,12 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
             {sortedEvents.map((event) => {
                 const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
                 const clipReference = formatClipReference(event)
-                const isSelected = selectedEventId === event.id
+                const isSelected = videoSync.selectedEventId === event.id
                 return (
                   <li key={event.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedEventId(event.id)}
+                      onClick={() => videoSync.selectEvent(event.id)}
                       className={`w-full rounded-3xl border p-4 text-left transition hover:border-accent hover:bg-surface ${
                         isSelected ? 'border-accent bg-surface' : 'border-border bg-surface3'
                       }`}
@@ -619,7 +619,22 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
           </ul>
 
           <div className="space-y-4">
-            <VideoPanel event={selectedEvent} clips={videoClips} isLoading={isLoadingClips} />
+            <VideoPanel
+              event={selectedEvent}
+              clip={videoSync.selectedClip}
+              eventPosition={videoSync.eventPosition}
+              eventsCount={sortedEvents.length}
+              canGoPrevious={videoSync.canGoPrevious}
+              canGoNext={videoSync.canGoNext}
+              onPrevious={videoSync.selectPrevious}
+              onNext={videoSync.selectNext}
+              isClipMetadataLoading={isLoadingClips}
+              videoStatus={videoSync.videoStatus}
+              onVideoLoadStart={videoSync.markVideoLoading}
+              onVideoReady={videoSync.markVideoReady}
+              onVideoError={videoSync.markVideoError}
+              resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+            />
             <EventDetailsPanel
               event={selectedEvent}
               resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
@@ -642,44 +657,182 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   )
 }
 
-function VideoPanel({ event, clips, isLoading }: { event: Event | null; clips: MatchVideoClip[]; isLoading: boolean }) {
-  const clip = event?.video_clip_id ? clips.find((item) => item.id === event.video_clip_id) ?? null : null
+type VideoStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+function useEventVideoSync(events: Event[], clips: MatchVideoClip[]) {
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [videoStatus, setVideoStatus] = useState<VideoStatus>('idle')
+  const selectedEventIndex = selectedEventId ? events.findIndex((event) => event.id === selectedEventId) : -1
+  const selectedEvent = selectedEventIndex >= 0 ? events[selectedEventIndex] : null
+  const selectedClip = selectedEvent?.video_clip_id ? clips.find((clip) => clip.id === selectedEvent.video_clip_id) ?? null : null
+
+  useEffect(() => {
+    if (!selectedEventId) return
+    if (!events.some((event) => event.id === selectedEventId)) {
+      setSelectedEventId(null)
+    }
+  }, [events, selectedEventId])
+
+  useEffect(() => {
+    if (!selectedEvent || !selectedEvent.video_clip_id) {
+      setVideoStatus('idle')
+      return
+    }
+    if (!selectedClip) {
+      setVideoStatus('loading')
+      return
+    }
+    setVideoStatus('loading')
+  }, [selectedClip?.id, selectedEvent?.video_clip_id])
+
+  function selectEvent(eventId: string) {
+    setSelectedEventId(eventId)
+  }
+
+  function selectPrevious() {
+    if (selectedEventIndex > 0) {
+      setSelectedEventId(events[selectedEventIndex - 1].id)
+    }
+  }
+
+  function selectNext() {
+    if (selectedEventIndex >= 0 && selectedEventIndex < events.length - 1) {
+      setSelectedEventId(events[selectedEventIndex + 1].id)
+    }
+  }
+
+  return {
+    selectedEventId,
+    selectedEvent,
+    selectedClip,
+    eventPosition: selectedEventIndex >= 0 ? selectedEventIndex + 1 : 0,
+    canGoPrevious: selectedEventIndex > 0,
+    canGoNext: selectedEventIndex >= 0 && selectedEventIndex < events.length - 1,
+    videoStatus,
+    selectEvent,
+    selectPrevious,
+    selectNext,
+    markVideoLoading: () => setVideoStatus('loading'),
+    markVideoReady: () => setVideoStatus('ready'),
+    markVideoError: () => setVideoStatus('error'),
+  }
+}
+
+function VideoPanel({
+  event,
+  clip,
+  eventPosition,
+  eventsCount,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+  isClipMetadataLoading,
+  videoStatus,
+  onVideoLoadStart,
+  onVideoReady,
+  onVideoError,
+  resolveTeamLabel,
+}: {
+  event: Event | null
+  clip: MatchVideoClip | null
+  eventPosition: number
+  eventsCount: number
+  canGoPrevious: boolean
+  canGoNext: boolean
+  onPrevious: () => void
+  onNext: () => void
+  isClipMetadataLoading: boolean
+  videoStatus: VideoStatus
+  onVideoLoadStart: () => void
+  onVideoReady: () => void
+  onVideoError: () => void
+  resolveTeamLabel: (event: Event) => string
+}) {
   const clipReference = event ? formatClipReference(event) : null
+  const playbackAvailable = Boolean(event?.video_clip_id && clip)
 
   return (
     <aside className="rounded-3xl border border-border bg-surface3 p-5">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-muted">Video evidence</p>
-        <h4 className="mt-2 text-lg font-semibold text-white">Match clip</h4>
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Video evidence</p>
+          <h4 className="mt-2 text-lg font-semibold text-white">Match clip</h4>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn-secondary" onClick={onPrevious} disabled={!canGoPrevious} aria-label="Select previous event">
+            Previous event
+          </button>
+          <button type="button" className="btn-secondary" onClick={onNext} disabled={!canGoNext} aria-label="Select next event">
+            Next event
+          </button>
+          <span className="rounded-full bg-background px-3 py-1 text-sm text-muted" aria-live="polite">
+            {eventPosition > 0 ? `${eventPosition} / ${eventsCount}` : `0 / ${eventsCount}`}
+          </span>
+        </div>
       </div>
 
-      {isLoading && <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">Loading clips...</div>}
+      {event && (
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-white">{formatMatchTime(event)}</span>
+            {clipReference && <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">{clipReference}</span>}
+          </div>
+          <p className="mt-3 font-semibold text-white">{formatEventName(event.event_type)}</p>
+          <p className="mt-1 text-muted">Team: {resolveTeamLabel(event)}</p>
+        </div>
+      )}
 
-      {!isLoading && !event && (
+      {isClipMetadataLoading && <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">Loading clips...</div>}
+
+      {!isClipMetadataLoading && !event && (
         <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
           Select an event to review its video evidence.
         </div>
       )}
 
-      {!isLoading && event && !event.video_clip_id && (
+      {!isClipMetadataLoading && event && !event.video_clip_id && (
         <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
           This event has no linked video clip.
         </div>
       )}
 
-      {!isLoading && event?.video_clip_id && !clip && (
+      {!isClipMetadataLoading && event?.video_clip_id && !clip && (
         <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
           The linked video clip metadata could not be loaded.
         </div>
       )}
 
-      {!isLoading && clip && (
+      {!isClipMetadataLoading && playbackAvailable && clip && (
         <div className="mt-4 space-y-3">
-          <video key={clip.id} className="aspect-video w-full rounded-2xl bg-black" src={getVideoClipStreamUrl(clip.id)} controls preload="metadata" />
+          <div className="relative">
+            <video
+              key={clip.id}
+              className="aspect-video w-full rounded-2xl bg-black"
+              src={getVideoClipStreamUrl(clip.id)}
+              controls
+              preload="metadata"
+              onLoadStart={onVideoLoadStart}
+              onLoadedMetadata={onVideoReady}
+              onCanPlay={onVideoReady}
+              onError={onVideoError}
+            />
+            {videoStatus === 'loading' && (
+              <div className="pointer-events-none absolute inset-x-3 top-3 rounded-2xl bg-black/70 px-3 py-2 text-sm text-white">
+                Loading clip...
+              </div>
+            )}
+          </div>
           <div className="text-sm text-muted">
             <p className="font-semibold text-white">{clipReference ?? 'Linked clip'}</p>
             <p className="mt-1">{clip.original_filename}</p>
           </div>
+          {videoStatus === 'error' && (
+            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+              Clip failed to load. Try selecting the event again or confirm the import files still exist.
+            </div>
+          )}
         </div>
       )}
     </aside>

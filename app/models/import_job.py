@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,10 +11,20 @@ from app.models.base import TimestampedUUIDModel
 
 class ImportJob(TimestampedUUIDModel):
     __tablename__ = "import_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('created', 'uploaded', 'extracting', 'parsing', 'normalizing', 'persisting', 'completed', 'failed', 'deleted')",
+            name="ck_import_jobs_status",
+        ),
+    )
 
     match_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
     provider: Mapped[ImportProvider] = mapped_column(Enum(ImportProvider, native_enum=False, length=32), nullable=False)
-    status: Mapped[ImportStatus] = mapped_column(Enum(ImportStatus, native_enum=False, length=32), nullable=False, default=ImportStatus.CREATED)
+    status: Mapped[ImportStatus] = mapped_column(
+        Enum(ImportStatus, native_enum=False, length=32, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
+        nullable=False,
+        default=ImportStatus.CREATED,
+    )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)

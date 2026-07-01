@@ -22,7 +22,7 @@ async def test_create_import_job(import_job_service: ImportJobService):
     job.match_id = UUID(int=2)
     job.provider = ImportProvider.VEO
     job.filename = "game.zip"
-    job.status = ImportStatus.PENDING
+    job.status = ImportStatus.CREATED
     job.started_at = None
     job.finished_at = None
     job.imported_events_count = 0
@@ -82,7 +82,7 @@ async def test_list_import_jobs(import_job_service: ImportJobService):
     job.match_id = UUID(int=2)
     job.provider = ImportProvider.OTHER
     job.filename = "unknown.dat"
-    job.status = ImportStatus.PENDING
+    job.status = ImportStatus.CREATED
     job.started_at = None
     job.finished_at = None
     job.imported_events_count = 0

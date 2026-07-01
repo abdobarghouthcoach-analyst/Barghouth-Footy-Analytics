@@ -53,7 +53,7 @@ class MatchService:
             match.home_team_id = data.home_team_id
         if data.away_team_id is not None:
             match.away_team_id = data.away_team_id
-        if data.home_team_id is not None and data.away_team_id is not None and data.home_team_id == data.away_team_id:
+        if match.home_team_id == match.away_team_id:
             raise ValueError("home_team_id and away_team_id must differ")
         if data.kickoff_datetime is not None:
             match.kickoff_datetime = data.kickoff_datetime

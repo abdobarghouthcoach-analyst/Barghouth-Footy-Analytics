@@ -8,7 +8,12 @@ from alembic import context
 from app.config import settings
 from app.models.base import Base
 import app.models.competition  # noqa: F401
+import app.models.event  # noqa: F401
+import app.models.import_job  # noqa: F401
+import app.models.match  # noqa: F401
 import app.models.season  # noqa: F401
+import app.models.team  # noqa: F401
+import app.models.video_clip  # noqa: F401
 
 config = context.config
 fileConfig(config.config_file_name)

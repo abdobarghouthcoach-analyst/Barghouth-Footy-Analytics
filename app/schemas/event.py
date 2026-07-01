@@ -22,6 +22,7 @@ class EventBase(BaseModel):
     source_provider: SourceProvider = SourceProvider.MANUAL
     source_event_id: str | None = Field(None, max_length=128)
     import_job_id: UUID | None = None
+    video_clip_id: UUID | None = None
     source: EventSource = EventSource.MANUAL
     provider: EventProvider | None = None
     provider_event_id: str | None = Field(None, max_length=128)

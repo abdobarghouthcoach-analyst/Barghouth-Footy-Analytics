@@ -8,6 +8,8 @@ import {
   getEvents,
   getMatch,
   getMatchImports,
+  getMatchVideoClips,
+  getVideoClipStreamUrl,
   getTeams,
   updateEvent,
   uploadVeoHighlightsImport,
@@ -15,6 +17,7 @@ import {
   Event,
   ImportJob,
   Match,
+  MatchVideoClip,
   Team,
   UpdateEventPayload,
 } from '../lib/api'
@@ -149,6 +152,7 @@ function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: (
     onSuccess() {
       setFile(null)
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'video-clips'] })
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'imports'] })
     },
   })
@@ -156,6 +160,7 @@ function ImportTab({ matchId, onOpenEvents }: { matchId: string; onOpenEvents: (
     mutationFn: (importJobId: string) => deleteImportJob(importJobId),
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'video-clips'] })
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'imports'] })
     },
   })
@@ -476,6 +481,11 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
     queryFn: () => getEvents(matchId),
     enabled: !!matchId,
   })
+  const { data: videoClips = [], isLoading: isLoadingClips } = useQuery<MatchVideoClip[]>({
+    queryKey: ['matches', matchId, 'video-clips'],
+    queryFn: () => getMatchVideoClips(matchId),
+    enabled: !!matchId,
+  })
   const [showForm, setShowForm] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const sortedEvents = useMemo(() => events.slice().sort(sortEventsForReview), [events])
@@ -570,7 +580,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       )}
 
       {!isLoading && events.length > 0 && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <ul className="space-y-3">
             {sortedEvents.map((event) => {
                 const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
@@ -608,24 +618,71 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
               })}
           </ul>
 
-          <EventDetailsPanel
-            event={selectedEvent}
-            resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
-            teamOptions={teamOptions}
-            onSave={(eventId, payload, onSuccess) => {
-              updateMutation.mutate(
-                { eventId, payload },
-                {
-                  onSuccess,
-                },
-              )
-            }}
-            isSaving={updateMutation.isPending}
-            error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
-          />
+          <div className="space-y-4">
+            <VideoPanel event={selectedEvent} clips={videoClips} isLoading={isLoadingClips} />
+            <EventDetailsPanel
+              event={selectedEvent}
+              resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+              teamOptions={teamOptions}
+              onSave={(eventId, payload, onSuccess) => {
+                updateMutation.mutate(
+                  { eventId, payload },
+                  {
+                    onSuccess,
+                  },
+                )
+              }}
+              isSaving={updateMutation.isPending}
+              error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
+            />
+          </div>
         </div>
       )}
     </div>
+  )
+}
+
+function VideoPanel({ event, clips, isLoading }: { event: Event | null; clips: MatchVideoClip[]; isLoading: boolean }) {
+  const clip = event?.video_clip_id ? clips.find((item) => item.id === event.video_clip_id) ?? null : null
+  const clipReference = event ? formatClipReference(event) : null
+
+  return (
+    <aside className="rounded-3xl border border-border bg-surface3 p-5">
+      <div>
+        <p className="text-xs uppercase tracking-[0.2em] text-muted">Video evidence</p>
+        <h4 className="mt-2 text-lg font-semibold text-white">Match clip</h4>
+      </div>
+
+      {isLoading && <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">Loading clips...</div>}
+
+      {!isLoading && !event && (
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+          Select an event to review its video evidence.
+        </div>
+      )}
+
+      {!isLoading && event && !event.video_clip_id && (
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+          This event has no linked video clip.
+        </div>
+      )}
+
+      {!isLoading && event?.video_clip_id && !clip && (
+        <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          The linked video clip metadata could not be loaded.
+        </div>
+      )}
+
+      {!isLoading && clip && (
+        <div className="mt-4 space-y-3">
+          <video key={clip.id} className="aspect-video w-full rounded-2xl bg-black" src={getVideoClipStreamUrl(clip.id)} controls preload="metadata" />
+          <div className="text-sm text-muted">
+            <p className="font-semibold text-white">{clipReference ?? 'Linked clip'}</p>
+            <p className="mt-1">{clip.original_filename}</p>
+          </div>
+        </div>
+      )}
+    </aside>
   )
 }
 
@@ -771,6 +828,7 @@ function EventDetailsPanel({
           <DetailRow label="Source" value={event.source === 'import' ? 'Import' : 'Manual'} />
           <DetailRow label="Clip number" value={clipReference || '-'} />
           <DetailRow label="Original filename" value={originalFilename || '-'} />
+          <DetailRow label="Video Clip ID" value={event.video_clip_id || '-'} />
           <DetailRow label="Import Job ID" value={event.import_job_id || '-'} />
           <DetailRow label="Edited" value={event.edited_at ? formatDateTime(event.edited_at) : '-'} />
         </div>

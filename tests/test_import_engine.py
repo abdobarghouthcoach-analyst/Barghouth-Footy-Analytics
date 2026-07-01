@@ -15,6 +15,7 @@ from app.imports.service import ImportEngineService, ImportValidationError
 from app.models.event import Event
 from app.models.import_job import ImportJob
 from app.models.match import Match
+from app.models.video_clip import MatchVideoClip
 
 
 MATCH_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -36,6 +37,8 @@ class FakeImportSession:
         self.import_jobs: list[ImportJob] = []
         self.events: list[Event] = []
         self.pending_events: list[Event] = []
+        self.video_clips: list[MatchVideoClip] = []
+        self.pending_video_clips: list[MatchVideoClip] = []
         self.fail_event_commit = fail_event_commit
         self.rollback_count = 0
 
@@ -44,6 +47,8 @@ class FakeImportSession:
             return self.match
         if model is ImportJob:
             return next((job for job in self.import_jobs if job.id == item_id), None)
+        if model is MatchVideoClip:
+            return next((clip for clip in self.video_clips if clip.id == item_id), None)
         return None
 
     def add(self, item):
@@ -60,16 +65,31 @@ class FakeImportSession:
             self._stamp(item)
             self.pending_events.append(item)
             return
+        if isinstance(item, MatchVideoClip):
+            if item.id is None:
+                item.id = uuid4()
+            self._stamp(item)
+            self.pending_video_clips.append(item)
+            return
         raise TypeError(f"Unsupported item type: {type(item)!r}")
 
     async def commit(self):
         if self.pending_events:
             if self.fail_event_commit:
                 raise RuntimeError("forced event persistence failure")
+            self.video_clips.extend(self.pending_video_clips)
+            self.pending_video_clips = []
             self.events.extend(self.pending_events)
             self.pending_events = []
+        elif self.pending_video_clips:
+            self.video_clips.extend(self.pending_video_clips)
+            self.pending_video_clips = []
         for job in self.import_jobs:
             self._stamp(job)
+
+    async def flush(self):
+        for clip in self.pending_video_clips:
+            self._stamp(clip)
 
     async def refresh(self, item):
         self._stamp(item)
@@ -81,17 +101,24 @@ class FakeImportSession:
             return FakeResult([event for event in self.events if event.import_job_id == target_import_job_id])
         if entity is ImportJob:
             return FakeResult(self.import_jobs)
+        if entity is MatchVideoClip:
+            target_import_job_id = self._first_where_value(statement)
+            return FakeResult([clip for clip in self.video_clips if clip.import_job_id == target_import_job_id])
         return FakeResult([])
 
     async def delete(self, item):
         if isinstance(item, Event):
             self.events = [event for event in self.events if event.id != item.id]
             return
+        if isinstance(item, MatchVideoClip):
+            self.video_clips = [clip for clip in self.video_clips if clip.id != item.id]
+            return
         raise TypeError(f"Unsupported item type: {type(item)!r}")
 
     async def rollback(self):
         self.rollback_count += 1
         self.pending_events = []
+        self.pending_video_clips = []
 
     def _stamp(self, item):
         now = datetime.now(timezone.utc)
@@ -142,6 +169,7 @@ def service(tmp_path: Path, session: FakeImportSession, monkeypatch: pytest.Monk
     from app.config import settings
 
     monkeypatch.setattr(settings, "import_storage_root", str(tmp_path / "imports"))
+    monkeypatch.setattr(settings, "video_storage_root", str(tmp_path / "matches"))
     return ImportEngineService(session)  # type: ignore[arg-type]
 
 
@@ -230,11 +258,13 @@ async def test_real_style_mp4_only_zip_imports_from_filenames(tmp_path, monkeypa
     assert result.status == ImportStatus.COMPLETED
     assert result.imported_events_count == 3
     assert len(session.events) == 3
+    assert len(session.video_clips) == 3
     assert result.summary is not None
     assert result.summary["parser_selected"] == "veo_highlights_mp4_filename"
     assert result.summary["selected_metadata_type"] == "mp4_filename"
     assert result.summary["total_parsed_provider_rows"] == 3
     assert result.summary["total_normalized_events"] == 3
+    assert result.summary["video_clips_imported"] == 3
     assert result.summary["detected_mp4_highlight_files"] == [
         "Veo highlights Tamworth FC vs. Ashby/01 000124_-_Shot_on_goal.mp4",
         "Veo highlights Tamworth FC vs. Ashby/04 000659_-_Goal.mp4",
@@ -244,6 +274,7 @@ async def test_real_style_mp4_only_zip_imports_from_filenames(tmp_path, monkeypa
     first_event = session.events[0]
     assert first_event.match_id == MATCH_ID
     assert first_event.import_job_id == session.import_jobs[0].id
+    assert first_event.video_clip_id == session.video_clips[0].id
     assert first_event.source == EventSource.IMPORT
     assert first_event.provider == EventProvider.VEO
     assert first_event.team_id is None
@@ -261,14 +292,22 @@ async def test_real_style_mp4_only_zip_imports_from_filenames(tmp_path, monkeypa
     assert first_event.raw_payload["clock_seconds"] == 84
     assert first_event.raw_payload["original_label"] == "Shot_on_goal"
     assert first_event.raw_payload["parsed_from"] == "mp4_filename"
+    assert session.video_clips[0].match_id == MATCH_ID
+    assert session.video_clips[0].import_job_id == session.import_jobs[0].id
+    assert session.video_clips[0].source_provider == "veo"
+    assert session.video_clips[0].original_filename == "01 000124_-_Shot_on_goal.mp4"
+    assert session.video_clips[0].mime_type == "video/mp4"
+    assert session.video_clips[0].file_size_bytes == 5
 
     goal_event = session.events[1]
+    assert goal_event.video_clip_id == session.video_clips[1].id
     assert goal_event.event_type == "goal"
     assert goal_event.minute == 6
     assert goal_event.second == 59
     assert goal_event.raw_payload["clock_seconds"] == 419
 
     late_event = session.events[2]
+    assert late_event.video_clip_id == session.video_clips[2].id
     assert late_event.event_type == "shot_on_goal"
     assert late_event.minute == 63
     assert late_event.second == 53
@@ -390,6 +429,8 @@ async def test_event_persistence_failure_marks_job_failed_and_rolls_back_events(
     assert session.import_jobs[0].status == ImportStatus.FAILED
     assert session.events == []
     assert session.pending_events == []
+    assert session.video_clips == []
+    assert session.pending_video_clips == []
     assert session.rollback_count == 1
 
 
@@ -429,4 +470,6 @@ async def test_delete_import_job_removes_imported_events_and_files_but_preserves
     assert session.import_jobs[0].status == ImportStatus.DELETED
     assert session.import_jobs[0].deleted_at is not None
     assert session.events == [manual_event]
+    assert session.video_clips == []
     assert not job_dir.exists()
+    assert not (tmp_path / "matches" / str(MATCH_ID) / "imports" / str(import_job_id)).exists()

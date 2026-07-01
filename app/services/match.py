@@ -11,6 +11,7 @@ from app.models.import_job import ImportJob
 from app.models.match import Match
 from app.repositories.match import MatchRepository
 from app.schemas.match import MatchCreate, MatchResponse, MatchUpdate
+from app.video.storage import VideoClipStorage
 
 
 class MatchService:
@@ -18,6 +19,7 @@ class MatchService:
         self.session = session
         self.repository = MatchRepository(session)
         self.storage = ImportStorage(Path(settings.import_storage_root))
+        self.video_storage = VideoClipStorage(Path(settings.video_storage_root))
 
     async def list_matches(self) -> list[MatchResponse]:
         rows = await self.repository.list_with_team_names()
@@ -83,6 +85,7 @@ class MatchService:
         import_jobs = list(result.scalars().all())
         for import_job in import_jobs:
             self.storage.delete_job_files(match_id=match_id, import_job_id=import_job.id)
+        self.video_storage.delete_match_video(match_id=match_id)
 
         await self.session.delete(match)
         await self.session.commit()

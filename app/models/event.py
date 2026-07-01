@@ -31,6 +31,9 @@ class Event(TimestampedUUIDModel):
     source_provider: Mapped[SourceProvider] = mapped_column(Enum(SourceProvider, native_enum=False, length=32), nullable=False, default=SourceProvider.MANUAL)
     source_event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     import_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="SET NULL"), nullable=True)
+    video_clip_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("match_video_clips.id", ondelete="SET NULL"), nullable=True
+    )
     source: Mapped[EventSource] = mapped_column(
         Enum(EventSource, native_enum=False, length=32, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
         nullable=False,

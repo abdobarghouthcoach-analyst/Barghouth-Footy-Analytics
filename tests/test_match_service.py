@@ -73,11 +73,15 @@ async def test_delete_match_removes_import_storage_and_deletes_match(tmp_path, m
     from app.config import settings
 
     monkeypatch.setattr(settings, "import_storage_root", str(tmp_path / "imports"))
+    monkeypatch.setattr(settings, "video_storage_root", str(tmp_path / "matches"))
     job_dir = tmp_path / "imports" / str(MATCH_ID) / str(IMPORT_JOB_ID)
     extracted_dir = job_dir / "extracted"
     extracted_dir.mkdir(parents=True)
     (job_dir / "original.zip").write_bytes(b"zip")
     (extracted_dir / "clip.mp4").write_bytes(b"video")
+    match_video_dir = tmp_path / "matches" / str(MATCH_ID)
+    match_video_dir.mkdir(parents=True)
+    (match_video_dir / "clip.mp4").write_bytes(b"video")
     session = FakeMatchSession()
     service = MatchService(session)  # type: ignore[arg-type]
 
@@ -87,3 +91,4 @@ async def test_delete_match_removes_import_storage_and_deletes_match(tmp_path, m
     assert session.deleted_match is session.match
     assert session.commit_count == 1
     assert not job_dir.exists()
+    assert not match_video_dir.exists()

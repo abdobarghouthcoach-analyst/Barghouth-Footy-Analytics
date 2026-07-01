@@ -1,4 +1,4 @@
-import { fetcher } from './api-client'
+import { API_BASE_URL, fetcher } from './api-client'
 
 export type IdObject = { id: string }
 
@@ -51,6 +51,7 @@ export type Event = {
   id: string
   match_id: string
   import_job_id?: string | null
+  video_clip_id?: string | null
   team_id?: string | null
   player_id?: string | null
   event_type: string
@@ -64,6 +65,19 @@ export type Event = {
   raw_payload?: Record<string, unknown> | null
   created_at?: string
   edited_at?: string | null
+}
+
+export type MatchVideoClip = {
+  id: string
+  match_id: string
+  import_job_id?: string | null
+  source_provider: string
+  original_filename: string
+  mime_type: string
+  file_size_bytes: number
+  duration_seconds?: number | null
+  created_at: string
+  updated_at: string
 }
 
 export type CreateEventPayload = {
@@ -202,6 +216,14 @@ export async function deleteMatch(matchId: string): Promise<void> {
 export async function getEvents(matchId: string): Promise<Event[]> {
   // backend supports filtering by match_id query param
   return fetcher(`/events/?match_id=${encodeURIComponent(matchId)}`)
+}
+
+export async function getMatchVideoClips(matchId: string): Promise<MatchVideoClip[]> {
+  return fetcher(`/matches/${matchId}/video-clips`)
+}
+
+export function getVideoClipStreamUrl(clipId: string): string {
+  return `${API_BASE_URL}/video-clips/${clipId}/stream`
 }
 
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {

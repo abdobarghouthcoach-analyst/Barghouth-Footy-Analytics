@@ -37,6 +37,7 @@ class EventService:
             source_provider=data.source_provider,
             source_event_id=data.source_event_id,
             import_job_id=data.import_job_id,
+            video_clip_id=data.video_clip_id,
             source=data.source,
             provider=data.provider,
             provider_event_id=data.provider_event_id,

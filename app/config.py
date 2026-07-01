@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@db:5432/barghouth"
     log_level: str = "INFO"
     import_storage_root: str = "/app/storage/imports"
+    video_storage_root: str = "/app/storage/matches"
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="", case_sensitive=False)
 

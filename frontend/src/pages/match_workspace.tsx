@@ -465,6 +465,15 @@ type TeamOption = {
   label: string
 }
 
+type ReviewStatusFilter = 'all' | 'reviewed' | 'unreviewed'
+
+type EventFilters = {
+  eventType: string
+  teamId: string
+  reviewStatus: ReviewStatusFilter
+  search: string
+}
+
 function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   const matchId = match.id
   const queryClient = useQueryClient()
@@ -487,8 +496,19 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
     enabled: !!matchId,
   })
   const [showForm, setShowForm] = useState(false)
+  const [filters, setFilters] = useState<EventFilters>({ eventType: '', teamId: '', reviewStatus: 'all', search: '' })
   const sortedEvents = useMemo(() => events.slice().sort(sortEventsForReview), [events])
-  const videoSync = useEventVideoSync(sortedEvents, videoClips)
+  const eventTypeOptions = useMemo(() => Array.from(new Set(sortedEvents.map((event) => event.event_type))).sort(), [sortedEvents])
+  const eventTeamOptions = useMemo<TeamOption[]>(() => {
+    const teamIds = Array.from(new Set(sortedEvents.map((event) => event.team_id).filter((teamId): teamId is string => Boolean(teamId)))).sort()
+    return teamIds.map((teamId) => ({ id: teamId, label: teamNames.get(teamId) ?? teamId }))
+  }, [sortedEvents, teamNames])
+  const filteredEvents = useMemo(
+    () => sortedEvents.filter((event) => eventMatchesFilters(event, filters, teamNames)),
+    [filters, sortedEvents, teamNames],
+  )
+  const filtersActive = filters.eventType !== '' || filters.teamId !== '' || filters.reviewStatus !== 'all' || filters.search.trim() !== ''
+  const videoSync = useEventVideoSync(filteredEvents, videoClips)
   const selectedEvent = videoSync.selectedEvent
 
   const mutation = useMutation({
@@ -525,6 +545,14 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       period: form.period,
       notes: undefined,
     })
+  }
+
+  function updateFilter<K extends keyof EventFilters>(key: K, value: EventFilters[K]) {
+    setFilters((current) => ({ ...current, [key]: value }))
+  }
+
+  function clearFilters() {
+    setFilters({ eventType: '', teamId: '', reviewStatus: 'all', search: '' })
   }
 
   return (
@@ -572,6 +600,19 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
 
       {isLoading && <div className="text-muted">Loading events...</div>}
 
+      {!isLoading && events.length > 0 && (
+        <EventFilterControls
+          filters={filters}
+          eventTypeOptions={eventTypeOptions}
+          teamOptions={eventTeamOptions}
+          totalCount={sortedEvents.length}
+          filteredCount={filteredEvents.length}
+          filtersActive={filtersActive}
+          onChange={updateFilter}
+          onClear={clearFilters}
+        />
+      )}
+
       {!isLoading && events.length === 0 && (
         <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
           <p className="text-lg font-semibold text-white">No events have been recorded yet.</p>
@@ -579,10 +620,20 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
         </div>
       )}
 
-      {!isLoading && events.length > 0 && (
+      {!isLoading && events.length > 0 && filteredEvents.length === 0 && (
+        <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
+          <p className="text-lg font-semibold text-white">No events match these filters.</p>
+          <p className="mt-2">Clear filters to return to the full event list.</p>
+          <button type="button" className="btn-secondary mt-4" onClick={clearFilters} disabled={!filtersActive}>
+            Clear filters
+          </button>
+        </div>
+      )}
+
+      {!isLoading && filteredEvents.length > 0 && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <ul className="space-y-3">
-            {sortedEvents.map((event) => {
+            {filteredEvents.map((event) => {
                 const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
                 const clipReference = formatClipReference(event)
                 const isSelected = videoSync.selectedEventId === event.id
@@ -623,7 +674,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
               event={selectedEvent}
               clip={videoSync.selectedClip}
               eventPosition={videoSync.eventPosition}
-              eventsCount={sortedEvents.length}
+              eventsCount={filteredEvents.length}
               canGoPrevious={videoSync.canGoPrevious}
               canGoNext={videoSync.canGoNext}
               onPrevious={videoSync.selectPrevious}
@@ -655,6 +706,119 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       )}
     </div>
   )
+}
+
+function EventFilterControls({
+  filters,
+  eventTypeOptions,
+  teamOptions,
+  totalCount,
+  filteredCount,
+  filtersActive,
+  onChange,
+  onClear,
+}: {
+  filters: EventFilters
+  eventTypeOptions: string[]
+  teamOptions: TeamOption[]
+  totalCount: number
+  filteredCount: number
+  filtersActive: boolean
+  onChange: <K extends keyof EventFilters>(key: K, value: EventFilters[K]) => void
+  onClear: () => void
+}) {
+  return (
+    <div className="mb-4 rounded-3xl border border-border bg-surface3 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <label className="block flex-1">
+          <span className="label">Search events</span>
+          <input
+            className="input"
+            type="search"
+            value={filters.search}
+            onChange={(event) => onChange('search', event.target.value)}
+            placeholder="Search type, team, time, notes"
+          />
+        </label>
+
+        <label className="block min-w-40">
+          <span className="label">Event type</span>
+          <select className="input" value={filters.eventType} onChange={(event) => onChange('eventType', event.target.value)}>
+            <option value="">All event types</option>
+            {eventTypeOptions.map((eventType) => (
+              <option key={eventType} value={eventType}>
+                {formatEventName(eventType)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block min-w-40">
+          <span className="label">Team</span>
+          <select className="input" value={filters.teamId} onChange={(event) => onChange('teamId', event.target.value)}>
+            <option value="">All teams</option>
+            {teamOptions.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block min-w-40">
+          <span className="label">Review status</span>
+          <select className="input" value={filters.reviewStatus} onChange={(event) => onChange('reviewStatus', event.target.value as ReviewStatusFilter)}>
+            <option value="all">All statuses</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="unreviewed">Unreviewed</option>
+          </select>
+        </label>
+
+        <button type="button" className="btn-secondary" onClick={onClear} disabled={!filtersActive}>
+          Clear filters
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+        <span className="rounded-full bg-background px-3 py-1" aria-live="polite">
+          Showing {filteredCount} / {totalCount} events
+        </span>
+        {filters.reviewStatus !== 'all' && (
+          <span className="rounded-full bg-background px-3 py-1">
+            Review: {filters.reviewStatus === 'reviewed' ? 'Reviewed' : 'Unreviewed'}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function eventMatchesFilters(event: Event, filters: EventFilters, teamNames: Map<string, string>) {
+  if (filters.eventType && event.event_type !== filters.eventType) return false
+  if (filters.teamId && event.team_id !== filters.teamId) return false
+  if (filters.reviewStatus === 'reviewed' && !isReviewedEvent(event)) return false
+  if (filters.reviewStatus === 'unreviewed' && isReviewedEvent(event)) return false
+
+  const query = filters.search.trim().toLowerCase()
+  if (!query) return true
+  return eventSearchText(event, teamNames).includes(query)
+}
+
+function eventSearchText(event: Event, teamNames: Map<string, string>) {
+  const values = [
+    event.event_type,
+    formatEventName(event.event_type),
+    event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team',
+    event.player_id,
+    event.period,
+    formatMatchTime(event),
+    event.notes,
+  ]
+  return values.filter((value): value is string => Boolean(value)).join(' ').toLowerCase()
+}
+
+function isReviewedEvent(event: Event) {
+  return Boolean(event.edited_at)
 }
 
 type VideoStatus = 'idle' | 'loading' | 'ready' | 'error'

@@ -75,7 +75,7 @@ export function MatchWorkspacePage() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-border bg-surface2 p-6 shadow-card">
+      <div className="rounded-3xl border border-border bg-surface2 p-4 shadow-card sm:p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-4">
             <Link to="/matches" className="text-sm text-accent hover:text-accent2">Back to Matches</Link>
@@ -103,7 +103,7 @@ export function MatchWorkspacePage() {
         </div>
 
         <div className="mt-6 border-b border-border">
-          <nav className="grid grid-cols-5 gap-2">
+          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {tabs.map((tab) => (
               <button
                 key={tab}
@@ -119,7 +119,7 @@ export function MatchWorkspacePage() {
         </div>
 
         <div className="mt-6">
-          {isLoading && <div className="text-muted">Loading match...</div>}
+          {isLoading && <WorkspaceLoadingState label="Loading match workspace..." />}
           {!isLoading && active !== 'Events' && active !== 'Import' && <TabContent tab={active} match={match ?? null} />}
           {!isLoading && active === 'Import' && <ImportTab matchId={matchId} onOpenEvents={() => setActive('Events')} />}
           {!isLoading && active === 'Events' && match && <TimelineTab match={match} teams={teams} />}
@@ -556,41 +556,58 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   }
 
   return (
-    <div>
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-border bg-surface3 p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-white">Events</h3>
-          <p className="text-sm text-muted">Track event timeline entries and match actions.</p>
+          <p className="text-sm text-muted">Navigate events, inspect video evidence, and correct details from one workspace.</p>
         </div>
         <button className="btn-secondary inline-flex items-center gap-2" onClick={() => setShowForm((current) => !current)}>
           {showForm ? 'Cancel' : 'Add Event'}
         </button>
       </div>
+      </div>
 
       {showForm && (
-        <form onSubmit={submit} className="mb-4 rounded border border-border p-4 bg-surface3">
-          <div className="grid grid-cols-3 gap-3">
-            <input className="input" placeholder="Event type" value={form.event_type} onChange={(e) => update('event_type', e.target.value)} required />
-            <input className="input" type="number" min={0} placeholder="Minute" value={form.minute} onChange={(e) => update('minute', e.target.value)} required />
-            <input className="input" type="number" min={0} max={59} placeholder="Second" value={form.second} onChange={(e) => update('second', e.target.value)} required />
-            <select className="input" value={form.period} onChange={(e) => update('period', e.target.value)}>
-              <option value="1H">1H</option>
-              <option value="2H">2H</option>
-              <option value="ET">ET</option>
-              <option value="P">P</option>
-            </select>
-            <select className="input" value={form.team_id} onChange={(e) => update('team_id', e.target.value)} required>
-              <option value="">Select team</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>{team.name}</option>
-              ))}
-            </select>
-            <div />
+        <form onSubmit={submit} className="rounded-3xl border border-border bg-surface3 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="block">
+              <span className="label">Event type</span>
+              <input className="input" placeholder="Goal, shot, pass..." value={form.event_type} onChange={(e) => update('event_type', e.target.value)} required />
+            </label>
+            <label className="block">
+              <span className="label">Minute</span>
+              <input className="input" type="number" min={0} value={form.minute} onChange={(e) => update('minute', e.target.value)} required />
+            </label>
+            <label className="block">
+              <span className="label">Second</span>
+              <input className="input" type="number" min={0} max={59} value={form.second} onChange={(e) => update('second', e.target.value)} required />
+            </label>
+            <label className="block">
+              <span className="label">Period</span>
+              <select className="input" value={form.period} onChange={(e) => update('period', e.target.value)}>
+                <option value="1H">1H</option>
+                <option value="2H">2H</option>
+                <option value="ET">ET</option>
+                <option value="P">P</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">Team</span>
+              <select className="input" value={form.team_id} onChange={(e) => update('team_id', e.target.value)} required>
+                <option value="">Select team</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          <div className="mt-3">
-            <textarea className="input h-24" placeholder="Notes (optional)" />
-          </div>
+          <label className="mt-3 block">
+            <span className="label">Notes</span>
+            <textarea className="input h-24" placeholder="Optional event context" />
+          </label>
 
           <div className="mt-3">
             <button className="btn-primary" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Adding...' : 'Add Event'}</button>
@@ -598,7 +615,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
         </form>
       )}
 
-      {isLoading && <div className="text-muted">Loading events...</div>}
+      {isLoading && <EventListLoadingState />}
 
       {!isLoading && events.length > 0 && (
         <EventFilterControls
@@ -616,7 +633,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       {!isLoading && events.length === 0 && (
         <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
           <p className="text-lg font-semibold text-white">No events have been recorded yet.</p>
-          <p className="mt-2">Import a Veo Highlights ZIP or add events manually.</p>
+          <p className="mt-2">Import a Veo Highlights ZIP or add events manually to start review.</p>
         </div>
       )}
 
@@ -631,9 +648,17 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       )}
 
       {!isLoading && filteredEvents.length > 0 && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <ul className="space-y-3">
-            {filteredEvents.map((event) => {
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] 2xl:grid-cols-[minmax(320px,0.9fr)_minmax(380px,1.1fr)_360px]">
+          <section className="min-w-0 rounded-3xl border border-border bg-surface3 p-4">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted">Event navigation</p>
+                <h4 className="text-lg font-semibold text-white">Review list</h4>
+              </div>
+              <span className="text-sm text-muted">{filteredEvents.length} visible</span>
+            </div>
+            <ul className="max-h-[72vh] space-y-3 overflow-y-auto pr-1">
+              {filteredEvents.map((event) => {
                 const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
                 const clipReference = formatClipReference(event)
                 const isSelected = videoSync.selectedEventId === event.id
@@ -667,43 +692,84 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
                   </li>
                 )
               })}
-          </ul>
+            </ul>
+          </section>
 
-          <div className="space-y-4">
-            <VideoPanel
-              event={selectedEvent}
-              clip={videoSync.selectedClip}
-              eventPosition={videoSync.eventPosition}
-              eventsCount={filteredEvents.length}
-              canGoPrevious={videoSync.canGoPrevious}
-              canGoNext={videoSync.canGoNext}
-              onPrevious={videoSync.selectPrevious}
-              onNext={videoSync.selectNext}
-              isClipMetadataLoading={isLoadingClips}
-              videoStatus={videoSync.videoStatus}
-              onVideoLoadStart={videoSync.markVideoLoading}
-              onVideoReady={videoSync.markVideoReady}
-              onVideoError={videoSync.markVideoError}
-              resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
-            />
-            <EventDetailsPanel
-              event={selectedEvent}
-              resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
-              teamOptions={teamOptions}
-              onSave={(eventId, payload, onSuccess) => {
-                updateMutation.mutate(
-                  { eventId, payload },
-                  {
-                    onSuccess,
-                  },
-                )
-              }}
-              isSaving={updateMutation.isPending}
-              error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
-            />
-          </div>
+          <VideoPanel
+            event={selectedEvent}
+            clip={videoSync.selectedClip}
+            eventPosition={videoSync.eventPosition}
+            eventsCount={filteredEvents.length}
+            canGoPrevious={videoSync.canGoPrevious}
+            canGoNext={videoSync.canGoNext}
+            onPrevious={videoSync.selectPrevious}
+            onNext={videoSync.selectNext}
+            isClipMetadataLoading={isLoadingClips}
+            videoStatus={videoSync.videoStatus}
+            onVideoLoadStart={videoSync.markVideoLoading}
+            onVideoReady={videoSync.markVideoReady}
+            onVideoError={videoSync.markVideoError}
+            resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+          />
+          <EventDetailsPanel
+            event={selectedEvent}
+            resolveTeamLabel={(event) => (event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team')}
+            teamOptions={teamOptions}
+            onSave={(eventId, payload, onSuccess) => {
+              updateMutation.mutate(
+                { eventId, payload },
+                {
+                  onSuccess,
+                },
+              )
+            }}
+            isSaving={updateMutation.isPending}
+            error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
+          />
         </div>
       )}
+    </div>
+  )
+}
+
+function WorkspaceLoadingState({ label }: { label: string }) {
+  return (
+    <div className="rounded-3xl border border-border bg-surface3 p-6">
+      <div className="h-4 w-40 rounded-full skeleton" />
+      <div className="mt-4 h-8 max-w-md rounded-full skeleton" />
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="h-20 rounded-2xl skeleton" />
+        <div className="h-20 rounded-2xl skeleton" />
+        <div className="h-20 rounded-2xl skeleton" />
+      </div>
+      <p className="mt-4 text-sm text-muted">{label}</p>
+    </div>
+  )
+}
+
+function EventListLoadingState() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] 2xl:grid-cols-[minmax(320px,0.9fr)_minmax(380px,1.1fr)_360px]">
+      <div className="rounded-3xl border border-border bg-surface3 p-4">
+        <div className="h-5 w-36 rounded-full skeleton" />
+        <div className="mt-4 space-y-3">
+          <div className="h-28 rounded-3xl skeleton" />
+          <div className="h-28 rounded-3xl skeleton" />
+          <div className="h-28 rounded-3xl skeleton" />
+        </div>
+      </div>
+      <div className="rounded-3xl border border-border bg-surface3 p-4">
+        <div className="aspect-video rounded-2xl skeleton" />
+        <p className="mt-4 text-sm text-muted">Loading events and clip metadata...</p>
+      </div>
+      <div className="rounded-3xl border border-border bg-surface3 p-4">
+        <div className="h-5 w-32 rounded-full skeleton" />
+        <div className="mt-4 space-y-3">
+          <div className="h-4 rounded-full skeleton" />
+          <div className="h-4 rounded-full skeleton" />
+          <div className="h-4 rounded-full skeleton" />
+        </div>
+      </div>
     </div>
   )
 }
@@ -917,21 +983,21 @@ function VideoPanel({
   const playbackAvailable = Boolean(event?.video_clip_id && clip)
 
   return (
-    <aside className="rounded-3xl border border-border bg-surface3 p-5">
+    <aside className="min-w-0 rounded-3xl border border-border bg-surface3 p-4 lg:sticky lg:top-4 lg:self-start">
       <div className="flex flex-col gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-muted">Video evidence</p>
-          <h4 className="mt-2 text-lg font-semibold text-white">Match clip</h4>
+          <h4 className="mt-2 text-lg font-semibold text-white">Clip review</h4>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-secondary" onClick={onPrevious} disabled={!canGoPrevious} aria-label="Select previous event">
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <button type="button" className="btn-secondary min-w-0" onClick={onPrevious} disabled={!canGoPrevious} aria-label="Select previous event">
             Previous event
           </button>
-          <button type="button" className="btn-secondary" onClick={onNext} disabled={!canGoNext} aria-label="Select next event">
+          <button type="button" className="btn-secondary min-w-0" onClick={onNext} disabled={!canGoNext} aria-label="Select next event">
             Next event
           </button>
-          <span className="rounded-full bg-background px-3 py-1 text-sm text-muted" aria-live="polite">
+          <span className="inline-flex items-center justify-center rounded-full bg-background px-3 py-1 text-sm text-muted" aria-live="polite">
             {eventPosition > 0 ? `${eventPosition} / ${eventsCount}` : `0 / ${eventsCount}`}
           </span>
         </div>
@@ -951,20 +1017,23 @@ function VideoPanel({
       {isClipMetadataLoading && <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">Loading clips...</div>}
 
       {!isClipMetadataLoading && !event && (
-        <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-          Select an event to review its video evidence.
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+          <p className="font-semibold text-white">No event selected</p>
+          <p className="mt-1">Choose an event from the review list to load linked video evidence.</p>
         </div>
       )}
 
       {!isClipMetadataLoading && event && !event.video_clip_id && (
-        <div className="mt-4 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-          This event has no linked video clip.
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+          <p className="font-semibold text-white">No clip linked</p>
+          <p className="mt-1">This event can still be reviewed and corrected, but no video evidence is attached.</p>
         </div>
       )}
 
       {!isClipMetadataLoading && event?.video_clip_id && !clip && (
         <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
-          The linked video clip metadata could not be loaded.
+          <p className="font-semibold text-white">Clip metadata unavailable</p>
+          <p className="mt-1">The linked video clip metadata could not be loaded.</p>
         </div>
       )}
 
@@ -1023,8 +1092,10 @@ function EventDetailsPanel({
 
   if (!event) {
     return (
-      <aside className="rounded-3xl border border-border bg-surface3 p-5 text-sm text-muted xl:sticky xl:top-6">
-        Select an event to review its details.
+      <aside className="min-w-0 rounded-3xl border border-border bg-surface3 p-5 text-sm text-muted lg:sticky lg:top-4 lg:self-start">
+        <p className="text-xs uppercase tracking-[0.2em] text-muted">Event details</p>
+        <p className="mt-3 font-semibold text-white">No event selected</p>
+        <p className="mt-1">Select an event to inspect details or make corrections.</p>
       </aside>
     )
   }
@@ -1065,7 +1136,8 @@ function EventDetailsPanel({
   }
 
   return (
-    <aside className="rounded-3xl border border-border bg-surface3 p-5 xl:sticky xl:top-6">
+    <aside className="min-w-0 rounded-3xl border border-border bg-surface3 p-5 lg:sticky lg:top-4 lg:self-start">
+      <p className="mb-3 text-xs uppercase tracking-[0.2em] text-muted">Event details</p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-sm font-semibold text-white">

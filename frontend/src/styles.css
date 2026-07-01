@@ -67,6 +67,18 @@ select {
   color: #ffffff;
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.btn-primary:disabled:hover,
+.btn-secondary:disabled:hover {
+  border-color: #30363d;
+}
+
 .input {
   width: 100%;
   border-radius: 20px;

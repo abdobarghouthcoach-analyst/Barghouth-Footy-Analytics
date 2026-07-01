@@ -1,8 +1,13 @@
+from pathlib import Path
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.domain.match import MatchStatus
+from app.imports.storage import ImportStorage
+from app.models.import_job import ImportJob
 from app.models.match import Match
 from app.repositories.match import MatchRepository
 from app.schemas.match import MatchCreate, MatchResponse, MatchUpdate
@@ -10,7 +15,9 @@ from app.schemas.match import MatchCreate, MatchResponse, MatchUpdate
 
 class MatchService:
     def __init__(self, session: AsyncSession) -> None:
+        self.session = session
         self.repository = MatchRepository(session)
+        self.storage = ImportStorage(Path(settings.import_storage_root))
 
     async def list_matches(self) -> list[MatchResponse]:
         rows = await self.repository.list_with_team_names()
@@ -61,7 +68,7 @@ class MatchService:
             match.venue = data.venue
         if data.status is not None:
             match.status = data.status
-        if data.analyst_notes is not None:
+        if "analyst_notes" in data.model_fields_set:
             match.analyst_notes = data.analyst_notes
 
         match = await self.repository.update(match)
@@ -72,7 +79,13 @@ class MatchService:
         if match is None:
             return False
 
-        await self.repository.delete(match)
+        result = await self.session.execute(select(ImportJob).where(ImportJob.match_id == match_id))
+        import_jobs = list(result.scalars().all())
+        for import_job in import_jobs:
+            self.storage.delete_job_files(match_id=match_id, import_job_id=import_job.id)
+
+        await self.session.delete(match)
+        await self.session.commit()
         return True
 
     def _response_with_team_names(

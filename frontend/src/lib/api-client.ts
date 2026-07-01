@@ -50,7 +50,8 @@ export async function fetcher<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message)
   }
 
-  // assume JSON responses for API endpoints used by the frontend
+  if (response.status === 204) return undefined as T
+
   return response.json() as Promise<T>
 }
 

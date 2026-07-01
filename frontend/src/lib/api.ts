@@ -193,6 +193,12 @@ export async function updateMatch(matchId: string, payload: UpdateMatchPayload):
   })
 }
 
+export async function deleteMatch(matchId: string): Promise<void> {
+  await fetcher<void>(`/matches/${matchId}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function getEvents(matchId: string): Promise<Event[]> {
   // backend supports filtering by match_id query param
   return fetcher(`/events/?match_id=${encodeURIComponent(matchId)}`)

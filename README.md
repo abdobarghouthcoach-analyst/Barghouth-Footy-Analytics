@@ -1,8 +1,8 @@
 # Barghouth Footy Analytics
 
-Barghouth Footy Analytics is a football analysis workspace for turning match setup data and Veo highlight exports into reviewable, correctable match events.
+Barghouth Footy Analytics is a football analysis workspace for turning match setup data and Veo highlight exports into reviewable, correctable match events with linked video evidence.
 
-The current release candidate is focused on the v0.2.0-alpha Match Management and Import workflow.
+The current release candidate is **v0.3.0-alpha**, focused on Match Workspace review, video synchronisation, event correction, import management, and analyst workflow.
 
 ## Tech Stack
 
@@ -64,6 +64,16 @@ docker compose run --rm backend alembic upgrade head
 
 The backend service also runs `alembic upgrade head` on startup in Docker Compose.
 
+## API Prefix
+
+The canonical API prefix is:
+
+```text
+/api/v1
+```
+
+The frontend and OpenAPI routes use this prefix for application APIs.
+
 ## Supported Veo Import Format
 
 BFA currently supports Veo Highlights ZIP imports.
@@ -89,44 +99,43 @@ Example:
 
 The MP4 parser reads filename metadata only. It does not inspect or process video contents.
 
+## M3 Architecture Notes
+
+`MatchVideoClip` is provider-neutral match evidence. Clips are linked to matches and optionally to import jobs, and events can optionally reference a clip through nullable `events.video_clip_id`.
+
+Video files are stored separately from import ZIPs under:
+
+```text
+/app/storage/video/{match_id}/imports/{import_job_id}/clips/
+```
+
+The streaming endpoint resolves stored paths against the configured video storage root before serving a file.
+
+Event review workflow is explicit and separate from event correction:
+- `is_reviewed`
+- `reviewed_at`
+- `reviewed_by`
+- `confidence`: `high`, `medium`, `low`, or `unknown`
+
+`edited_at` records correction edits only. It is not used as review state.
+
 ## Current Analyst Workflow
 
+```text
 Create Match
-
-↓
-
-Import Veo ZIP
-
-↓
-
-Review Events
-
-↓
-
-Correct Events
-
-↓
-
-Delete Import
-
-↓
-
-Re-import
+-> Import Veo ZIP
+-> Review Events with linked video
+-> Correct Events
+-> Mark review state and confidence
+-> Delete Import if needed
+-> Re-import
+```
 
 ## Known Limitations
 
 - Veo MP4 support is filename-based only.
-- No video playback yet.
+- Video playback is clip-based; no advanced video analysis is implemented.
 - Unknown team remains unknown until analyst correction.
-- Statistics are not yet implemented.
-- Reports, xG, authentication, SaaS, clubs, users, and background jobs are not part of v0.2.0-alpha.
-
-## API Prefix
-
-The canonical API prefix is:
-
-```text
-/api/v1
-```
-
-The frontend and OpenAPI routes are expected to use this prefix for application APIs.
+- Review ownership is a nullable string placeholder until authentication exists.
+- Bulk review uses sequential event updates from the frontend.
+- Statistics, reports, xG, authentication, SaaS, clubs, users, and background jobs are not part of v0.3.0-alpha.

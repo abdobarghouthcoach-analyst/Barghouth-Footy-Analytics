@@ -544,11 +544,11 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
 
   useEffect(() => {
     setSelectedBulkEventIds((current) => {
-      const eventIds = new Set(events.map((event) => event.id))
+      const eventIds = new Set(filteredEvents.map((event) => event.id))
       const next = new Set(Array.from(current).filter((eventId) => eventIds.has(eventId)))
       return next.size === current.size ? current : next
     })
-  }, [events])
+  }, [filteredEvents])
 
   const [form, setForm] = useState({ event_type: '', minute: '0', second: '0', period: '1H', team_id: '' })
 

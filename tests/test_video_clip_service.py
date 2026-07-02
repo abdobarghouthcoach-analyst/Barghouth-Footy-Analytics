@@ -108,3 +108,17 @@ async def test_stream_clip_rejects_missing_file(tmp_path, monkeypatch):
 
     with pytest.raises(VideoClipNotFoundError):
         await service.stream_clip(CLIP_ID)
+
+
+@pytest.mark.asyncio
+async def test_stream_clip_rejects_storage_path_outside_video_root(tmp_path, monkeypatch):
+    from app.config import settings
+
+    video_root = tmp_path / "matches"
+    outside_file = tmp_path / "outside.mp4"
+    outside_file.write_bytes(b"video")
+    monkeypatch.setattr(settings, "video_storage_root", str(video_root))
+    service = VideoClipService(FakeVideoSession(storage_path=str(outside_file)))  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError):
+        await service.stream_clip(CLIP_ID)

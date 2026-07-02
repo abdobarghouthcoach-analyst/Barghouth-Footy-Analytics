@@ -174,3 +174,27 @@ async def test_event_confidence_updates_without_marking_corrected(session):
 def test_event_update_rejects_invalid_confidence():
     with pytest.raises(ValidationError):
         EventUpdate.model_validate({"confidence": "certain"})
+
+
+@pytest.mark.asyncio
+async def test_event_unreviewed_state_cannot_keep_reviewer(session):
+    from app.services.event import EventService
+
+    service = EventService(session)
+    created = await service.create_event(
+        {
+            "match_id": UUID(int=1),
+            "team_id": UUID(int=2),
+            "event_type": "goal",
+            "minute": 10,
+            "second": 5,
+            "period": "1H",
+        }
+    )
+
+    updated = await service.update_event(created.id, {"is_reviewed": False, "reviewed_by": "analyst"})
+
+    assert updated is not None
+    assert updated.is_reviewed is False
+    assert updated.reviewed_at is None
+    assert updated.reviewed_by is None

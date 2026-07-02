@@ -172,6 +172,14 @@ The player statistics foundation supports goals, assists, shots, yellow cards, a
 
 Events without reliable player attribution are excluded from player statistics rather than guessed.
 
+## M4.5 Explainability Foundation
+
+Statistics expose a consistent explanation detail model across match, team, and player scopes.
+
+Each explanation includes statistic name, value, scope, optional team/player IDs, contributing events, fact references, rule identity, derivation reason/path, and attribution notes when known facts are excluded because team/player attribution is missing.
+
+The explanation helpers are domain-only and intended for future API/UI use; they do not persist statistics or introduce provider-specific logic.
+
 ## Current Analyst Workflow
 
 ```text

@@ -10,6 +10,7 @@ from app.domain.football.statistics.types import (
     PlayerStatistic,
     PlayerStatisticsSummary,
     StatisticExplanation,
+    StatisticScope,
     StatisticName,
     TeamStatistic,
     TeamStatisticsSummary,
@@ -66,7 +67,11 @@ class MatchStatisticsCalculator:
         return MatchStatistic(
             name=name,
             value=len(contributing_facts),
-            explanation=_statistic_explanation(name=name, facts=contributing_facts, derivation_scope="match"),
+            explanation=_statistic_explanation(
+                name=name,
+                facts=contributing_facts,
+                scope=StatisticScope.MATCH,
+            ),
         )
 
 
@@ -89,6 +94,7 @@ class TeamStatisticsCalculator:
             team_facts = tuple(fact for fact in facts if _team_id(fact) == team_id)
             for name, predicate in _statistic_predicates():
                 contributing_facts = tuple(fact for fact in team_facts if predicate(fact))
+                missing_attribution_facts = tuple(fact for fact in facts if predicate(fact) and _team_id(fact) is None)
                 statistics.append(
                     TeamStatistic(
                         team_id=team_id,
@@ -97,8 +103,13 @@ class TeamStatisticsCalculator:
                         explanation=_statistic_explanation(
                             name=name,
                             facts=contributing_facts,
-                            derivation_scope="team",
+                            scope=StatisticScope.TEAM,
                             team_id=team_id,
+                            incomplete_attribution_notes=_missing_attribution_notes(
+                                statistic_name=name,
+                                facts=missing_attribution_facts,
+                                attribution="team",
+                            ),
                         ),
                     )
                 )
@@ -124,6 +135,7 @@ class PlayerStatisticsCalculator:
             player_facts = tuple(fact for fact in facts if _player_id(fact) == player_id)
             for name, predicate in _player_statistic_predicates():
                 contributing_facts = tuple(fact for fact in player_facts if predicate(fact))
+                missing_attribution_facts = tuple(fact for fact in facts if predicate(fact) and _player_id(fact) is None)
                 statistics.append(
                     PlayerStatistic(
                         player_id=player_id,
@@ -132,8 +144,13 @@ class PlayerStatisticsCalculator:
                         explanation=_statistic_explanation(
                             name=name,
                             facts=contributing_facts,
-                            derivation_scope="player",
+                            scope=StatisticScope.PLAYER,
                             player_id=player_id,
+                            incomplete_attribution_notes=_missing_attribution_notes(
+                                statistic_name=name,
+                                facts=missing_attribution_facts,
+                                attribution="player",
+                            ),
                         ),
                     )
                 )
@@ -144,6 +161,9 @@ class PlayerStatisticsCalculator:
                 if fact.category == FactCategory.GOAL and _assist_player_id(fact) == player_id
             )
             if assist_facts:
+                missing_assist_facts = tuple(
+                    fact for fact in facts if fact.category == FactCategory.GOAL and _assist_player_id(fact) is None
+                )
                 statistics.append(
                     PlayerStatistic(
                         player_id=player_id,
@@ -152,8 +172,13 @@ class PlayerStatisticsCalculator:
                         explanation=_statistic_explanation(
                             name=StatisticName.ASSISTS,
                             facts=assist_facts,
-                            derivation_scope="player",
+                            scope=StatisticScope.PLAYER,
                             player_id=player_id,
+                            incomplete_attribution_notes=_missing_attribution_notes(
+                                statistic_name=StatisticName.ASSISTS,
+                                facts=missing_assist_facts,
+                                attribution="assist player",
+                            ),
                         ),
                     )
                 )
@@ -201,9 +226,10 @@ def _statistic_explanation(
     *,
     name: StatisticName,
     facts: tuple[DerivedFootballFact, ...],
-    derivation_scope: str,
+    scope: StatisticScope,
     team_id: str | None = None,
     player_id: str | None = None,
+    incomplete_attribution_notes: tuple[str, ...] = (),
 ) -> StatisticExplanation:
     event_ids = tuple(fact.event_id for fact in facts)
     fact_refs = tuple(_fact_ref(fact) for fact in facts)
@@ -227,15 +253,19 @@ def _statistic_explanation(
             f"player:{player_id}",
             f"statistic:{name.value}",
         )
-    elif derivation_scope != "match":
-        derivation_path = ("football_rules_engine", f"scope:{derivation_scope}", f"statistic:{name.value}")
     return StatisticExplanation(
+        statistic_name=name,
+        value=len(facts),
+        scope=scope,
+        team_id=team_id,
+        player_id=player_id,
         contributing_event_ids=event_ids,
         contributing_fact_refs=fact_refs,
         rule_ids=rule_ids,
         rule_names=rule_names,
         reason=reason,
         derivation_path=derivation_path,
+        incomplete_attribution_notes=incomplete_attribution_notes,
     )
 
 
@@ -274,6 +304,20 @@ def _player_ids(facts: tuple[DerivedFootballFact, ...]) -> tuple[str, ...]:
 
 def _fact_ref(fact: DerivedFootballFact) -> str:
     return f"{fact.explanation.rule_id}:{fact.event_id}:{fact.category.value}"
+
+
+def _missing_attribution_notes(
+    *,
+    statistic_name: StatisticName,
+    facts: tuple[DerivedFootballFact, ...],
+    attribution: str,
+) -> tuple[str, ...]:
+    if not facts:
+        return ()
+    event_ids = ", ".join(fact.event_id for fact in facts)
+    return (
+        f"{len(facts)} {statistic_name.value} fact(s) excluded because {attribution} attribution is missing: {event_ids}.",
+    )
 
 
 def _unique(values: Iterable[str]) -> tuple[str, ...]:

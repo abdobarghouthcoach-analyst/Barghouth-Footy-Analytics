@@ -35,6 +35,10 @@ async def test_event_crud(session):
     created = await service.create_event(data)
     assert created.id is not None
     assert created.event_type == "pass"
+    assert created.is_reviewed is False
+    assert created.reviewed_at is None
+    assert created.reviewed_by is None
+    assert created.confidence is None
 
     # get
     fetched = await service.get_event(created.id)
@@ -109,3 +113,64 @@ def test_event_update_rejects_immutable_fields():
                 "provider_event_id": "changed",
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_event_review_state_updates_without_marking_corrected(session):
+    from app.services.event import EventService
+
+    service = EventService(session)
+    created = await service.create_event(
+        {
+            "match_id": UUID(int=1),
+            "team_id": UUID(int=2),
+            "event_type": "goal",
+            "minute": 10,
+            "second": 5,
+            "period": "1H",
+        }
+    )
+
+    reviewed = await service.update_event(created.id, {"is_reviewed": True, "reviewed_by": "analyst"})
+
+    assert reviewed is not None
+    assert reviewed.is_reviewed is True
+    assert reviewed.reviewed_at is not None
+    assert reviewed.reviewed_by == "analyst"
+    assert reviewed.edited_at is None
+
+    unreviewed = await service.update_event(created.id, {"is_reviewed": False})
+
+    assert unreviewed is not None
+    assert unreviewed.is_reviewed is False
+    assert unreviewed.reviewed_at is None
+    assert unreviewed.reviewed_by is None
+    assert unreviewed.edited_at is None
+
+
+@pytest.mark.asyncio
+async def test_event_confidence_updates_without_marking_corrected(session):
+    from app.services.event import EventService
+
+    service = EventService(session)
+    created = await service.create_event(
+        {
+            "match_id": UUID(int=1),
+            "team_id": UUID(int=2),
+            "event_type": "shot_on_goal",
+            "minute": 12,
+            "second": 4,
+            "period": "1H",
+        }
+    )
+
+    updated = await service.update_event(created.id, {"confidence": "high"})
+
+    assert updated is not None
+    assert updated.confidence == "high"
+    assert updated.edited_at is None
+
+
+def test_event_update_rejects_invalid_confidence():
+    with pytest.raises(ValidationError):
+        EventUpdate.model_validate({"confidence": "certain"})

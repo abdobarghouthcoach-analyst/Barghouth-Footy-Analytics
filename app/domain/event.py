@@ -22,3 +22,10 @@ class EventSource(str, Enum):
 class EventProvider(str, Enum):
     VEO = "veo"
     OTHER = "other"
+
+
+class EventConfidence(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"

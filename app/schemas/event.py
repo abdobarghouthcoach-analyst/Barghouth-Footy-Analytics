@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.event import EventPeriod, EventProvider, EventSource, SourceProvider
+from app.domain.event import EventConfidence, EventPeriod, EventProvider, EventSource, SourceProvider
 
 
 class EventBase(BaseModel):
@@ -27,6 +27,10 @@ class EventBase(BaseModel):
     provider: EventProvider | None = None
     provider_event_id: str | None = Field(None, max_length=128)
     raw_payload: dict | None = None
+    is_reviewed: bool = False
+    reviewed_at: datetime | None = None
+    reviewed_by: str | None = Field(None, max_length=128)
+    confidence: EventConfidence | None = None
 
 
 class EventCreate(EventBase):
@@ -41,6 +45,9 @@ class EventUpdate(BaseModel):
     minute: int | None = Field(None, ge=0)
     second: int | None = Field(None, ge=0, le=59)
     notes: str | None = Field(None, max_length=2000)
+    is_reviewed: bool | None = None
+    reviewed_by: str | None = Field(None, max_length=128)
+    confidence: EventConfidence | None = None
 
 
 class EventResponse(EventBase):

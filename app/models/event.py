@@ -1,11 +1,11 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Float, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Float, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.event import EventPeriod, EventProvider, EventSource, SourceProvider
+from app.domain.event import EventConfidence, EventPeriod, EventProvider, EventSource, SourceProvider
 from app.models.base import TimestampedUUIDModel
 
 
@@ -14,6 +14,7 @@ class Event(TimestampedUUIDModel):
     __table_args__ = (
         CheckConstraint("source IN ('manual', 'import')", name="ck_events_source"),
         CheckConstraint("provider IS NULL OR provider IN ('veo', 'other')", name="ck_events_provider"),
+        CheckConstraint("confidence IS NULL OR confidence IN ('high', 'medium', 'low', 'unknown')", name="ck_events_confidence"),
     )
 
     match_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
@@ -46,3 +47,10 @@ class Event(TimestampedUUIDModel):
     provider_event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_reviewed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    confidence: Mapped[EventConfidence | None] = mapped_column(
+        Enum(EventConfidence, native_enum=False, length=32, values_callable=lambda enum_cls: [item.value for item in enum_cls]),
+        nullable=True,
+    )

@@ -65,6 +65,10 @@ export type Event = {
   raw_payload?: Record<string, unknown> | null
   created_at?: string
   edited_at?: string | null
+  is_reviewed: boolean
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+  confidence?: 'high' | 'medium' | 'low' | 'unknown' | null
 }
 
 export type MatchVideoClip = {
@@ -122,6 +126,9 @@ export type UpdateEventPayload = {
   minute?: number
   second?: number
   notes?: string | null
+  is_reviewed?: boolean
+  reviewed_by?: string | null
+  confidence?: 'high' | 'medium' | 'low' | 'unknown' | null
 }
 
 export type CreateCompetitionPayload = {

@@ -42,6 +42,10 @@ class EventService:
             provider=data.provider,
             provider_event_id=data.provider_event_id,
             raw_payload=data.raw_payload,
+            is_reviewed=data.is_reviewed,
+            reviewed_at=data.reviewed_at,
+            reviewed_by=data.reviewed_by,
+            confidence=data.confidence,
         )
         event = await self.repository.create(event)
         return EventResponse.model_validate(event)
@@ -52,17 +56,32 @@ class EventService:
         if item is None:
             return None
 
-        changed = False
+        corrected = False
         for field_name in ("team_id", "event_type", "minute", "second", "notes"):
             if field_name not in data.model_fields_set:
                 continue
             value = getattr(data, field_name)
             if getattr(item, field_name) != value:
                 setattr(item, field_name, value)
-                changed = True
+                corrected = True
 
-        if changed:
+        if corrected:
             item.edited_at = datetime.now(timezone.utc)
+
+        if "is_reviewed" in data.model_fields_set and data.is_reviewed is not None:
+            if item.is_reviewed != data.is_reviewed:
+                item.is_reviewed = data.is_reviewed
+                item.reviewed_at = datetime.now(timezone.utc) if data.is_reviewed else None
+                if not data.is_reviewed:
+                    item.reviewed_by = None
+
+        for field_name in ("reviewed_by", "confidence"):
+            if field_name not in data.model_fields_set:
+                continue
+            setattr(item, field_name, getattr(data, field_name))
+
+        if not item.is_reviewed:
+            item.reviewed_by = None
 
         item = await self.repository.update(item)
         return EventResponse.model_validate(item)

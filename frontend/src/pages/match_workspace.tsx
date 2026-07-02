@@ -474,6 +474,9 @@ type EventFilters = {
   search: string
 }
 
+const CONFIDENCE_OPTIONS = ['high', 'medium', 'low', 'unknown'] as const
+type ConfidenceValue = (typeof CONFIDENCE_OPTIONS)[number]
+
 function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   const matchId = match.id
   const queryClient = useQueryClient()
@@ -497,6 +500,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   })
   const [showForm, setShowForm] = useState(false)
   const [filters, setFilters] = useState<EventFilters>({ eventType: '', teamId: '', reviewStatus: 'all', search: '' })
+  const [selectedBulkEventIds, setSelectedBulkEventIds] = useState<Set<string>>(new Set())
   const sortedEvents = useMemo(() => events.slice().sort(sortEventsForReview), [events])
   const eventTypeOptions = useMemo(() => Array.from(new Set(sortedEvents.map((event) => event.event_type))).sort(), [sortedEvents])
   const eventTeamOptions = useMemo<TeamOption[]>(() => {
@@ -510,6 +514,7 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
   const filtersActive = filters.eventType !== '' || filters.teamId !== '' || filters.reviewStatus !== 'all' || filters.search.trim() !== ''
   const videoSync = useEventVideoSync(filteredEvents, videoClips)
   const selectedEvent = videoSync.selectedEvent
+  const selectedBulkCount = selectedBulkEventIds.size
 
   const mutation = useMutation({
     mutationFn: (payload: CreateEventPayload) => createEvent(payload),
@@ -526,6 +531,24 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
       queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
     },
   })
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ eventIds, payload }: { eventIds: string[]; payload: UpdateEventPayload }) => {
+      await Promise.all(eventIds.map((eventId) => updateEvent(eventId, payload)))
+    },
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: ['matches', matchId, 'events'] })
+      setSelectedBulkEventIds(new Set())
+    },
+  })
+
+  useEffect(() => {
+    setSelectedBulkEventIds((current) => {
+      const eventIds = new Set(events.map((event) => event.id))
+      const next = new Set(Array.from(current).filter((eventId) => eventIds.has(eventId)))
+      return next.size === current.size ? current : next
+    })
+  }, [events])
 
   const [form, setForm] = useState({ event_type: '', minute: '0', second: '0', period: '1H', team_id: '' })
 
@@ -553,6 +576,28 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
 
   function clearFilters() {
     setFilters({ eventType: '', teamId: '', reviewStatus: 'all', search: '' })
+  }
+
+  function toggleBulkEvent(eventId: string, selected: boolean) {
+    setSelectedBulkEventIds((current) => {
+      const next = new Set(current)
+      if (selected) {
+        next.add(eventId)
+      } else {
+        next.delete(eventId)
+      }
+      return next
+    })
+  }
+
+  function clearBulkSelection() {
+    setSelectedBulkEventIds(new Set())
+  }
+
+  function bulkUpdate(payload: UpdateEventPayload) {
+    const eventIds = Array.from(selectedBulkEventIds)
+    if (eventIds.length === 0 || bulkUpdateMutation.isPending) return
+    bulkUpdateMutation.mutate({ eventIds, payload })
   }
 
   return (
@@ -657,20 +702,43 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
               </div>
               <span className="text-sm text-muted">{filteredEvents.length} visible</span>
             </div>
+            <BulkWorkflowBar
+              selectedCount={selectedBulkCount}
+              isPending={bulkUpdateMutation.isPending}
+              error={bulkUpdateMutation.error instanceof Error ? bulkUpdateMutation.error.message : null}
+              onClear={clearBulkSelection}
+              onMarkReviewed={() => bulkUpdate({ is_reviewed: true })}
+              onMarkUnreviewed={() => bulkUpdate({ is_reviewed: false })}
+              onSetConfidence={(confidence) => bulkUpdate({ confidence })}
+            />
             <ul className="max-h-[72vh] space-y-3 overflow-y-auto pr-1">
               {filteredEvents.map((event) => {
                 const teamLabel = event.team_id ? teamNames.get(event.team_id) ?? event.team_id : 'Unknown Team'
                 const clipReference = formatClipReference(event)
                 const isSelected = videoSync.selectedEventId === event.id
+                const isBulkSelected = selectedBulkEventIds.has(event.id)
                 return (
-                  <li key={event.id}>
-                    <button
-                      type="button"
-                      onClick={() => videoSync.selectEvent(event.id)}
-                      className={`w-full rounded-3xl border p-4 text-left transition hover:border-accent hover:bg-surface ${
-                        isSelected ? 'border-accent bg-surface' : 'border-border bg-surface3'
-                      }`}
-                    >
+                  <li
+                    key={event.id}
+                    className={`rounded-3xl border p-4 transition ${
+                      isSelected ? 'border-accent bg-surface' : 'border-border bg-surface3 hover:border-accent hover:bg-surface'
+                    }`}
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <label className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">
+                        <input
+                          type="checkbox"
+                          checked={isBulkSelected}
+                          onChange={(changeEvent) => toggleBulkEvent(event.id, changeEvent.target.checked)}
+                          aria-label={`Select ${formatEventName(event.event_type)} at ${formatMatchTime(event)} for bulk workflow`}
+                        />
+                        Select
+                      </label>
+                      <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={() => videoSync.selectEvent(event.id)}>
+                        {isSelected ? 'Selected' : 'Review'}
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => videoSync.selectEvent(event.id)} className="w-full text-left">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-3">
@@ -679,6 +747,8 @@ function TimelineTab({ match, teams }: { match: Match; teams: Team[] }) {
                               {formatMatchTime(event)}
                             </span>
                             <EventSourceBadge event={event} />
+                            <ReviewBadge event={event} />
+                            <ConfidenceBadge confidence={event.confidence} />
                             {clipReference && <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">{clipReference}</span>}
                           </div>
                           <div>
@@ -879,12 +949,14 @@ function eventSearchText(event: Event, teamNames: Map<string, string>) {
     event.period,
     formatMatchTime(event),
     event.notes,
+    event.is_reviewed ? 'reviewed' : 'unreviewed',
+    event.confidence ? formatConfidence(event.confidence) : null,
   ]
   return values.filter((value): value is string => Boolean(value)).join(' ').toLowerCase()
 }
 
 function isReviewedEvent(event: Event) {
-  return Boolean(event.edited_at)
+  return event.is_reviewed
 }
 
 type VideoStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -1135,6 +1207,10 @@ function EventDetailsPanel({
     )
   }
 
+  function updateWorkflow(payload: UpdateEventPayload) {
+    onSave(currentEvent.id, payload, () => undefined)
+  }
+
   return (
     <aside className="min-w-0 rounded-3xl border border-border bg-surface3 p-5 lg:sticky lg:top-4 lg:self-start">
       <p className="mb-3 text-xs uppercase tracking-[0.2em] text-muted">Event details</p>
@@ -1215,6 +1291,10 @@ function EventDetailsPanel({
           <DetailRow label="Player" value={event.player_id || 'Unknown player'} />
           <DetailRow label="Provider" value={event.provider === 'veo' ? 'Veo' : event.provider || '-'} />
           <DetailRow label="Source" value={event.source === 'import' ? 'Import' : 'Manual'} />
+          <DetailRow label="Review status" value={event.is_reviewed ? 'Reviewed' : 'Unreviewed'} />
+          <DetailRow label="Confidence" value={formatConfidence(event.confidence)} />
+          <DetailRow label="Reviewed at" value={event.reviewed_at ? formatDateTime(event.reviewed_at) : '-'} />
+          <DetailRow label="Reviewed by" value={event.reviewed_by || '-'} />
           <DetailRow label="Clip number" value={clipReference || '-'} />
           <DetailRow label="Original filename" value={originalFilename || '-'} />
           <DetailRow label="Video Clip ID" value={event.video_clip_id || '-'} />
@@ -1222,6 +1302,44 @@ function EventDetailsPanel({
           <DetailRow label="Edited" value={event.edited_at ? formatDateTime(event.edited_at) : '-'} />
         </div>
       )}
+
+      <section className="mt-5 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted">Analyst workflow</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <ReviewBadge event={event} />
+              <ConfidenceBadge confidence={event.confidence} />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => updateWorkflow({ is_reviewed: !event.is_reviewed })}
+            disabled={isSaving}
+          >
+            {event.is_reviewed ? 'Mark unreviewed' : 'Mark reviewed'}
+          </button>
+        </div>
+
+        <label className="mt-4 block">
+          <span className="label">Confidence</span>
+          <select
+            className="input"
+            value={event.confidence ?? ''}
+            onChange={(changeEvent) => updateWorkflow({ confidence: changeEvent.target.value ? (changeEvent.target.value as ConfidenceValue) : null })}
+            disabled={isSaving}
+          >
+            <option value="">Not set</option>
+            {CONFIDENCE_OPTIONS.map((confidence) => (
+              <option key={confidence} value={confidence}>
+                {formatConfidence(confidence)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!isEditing && error && <div className="mt-3 rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
+      </section>
 
       {event.raw_payload && (
         <details className="mt-5 rounded-2xl border border-border bg-surface p-4">
@@ -1240,6 +1358,93 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs uppercase tracking-[0.2em] text-muted">{label}</p>
       <p className="mt-1 break-words text-white">{value}</p>
+    </div>
+  )
+}
+
+function formatConfidence(confidence?: string | null) {
+  if (!confidence) return 'Not set'
+  return formatEventName(confidence)
+}
+
+function ReviewBadge({ event }: { event: Event }) {
+  return event.is_reviewed ? (
+    <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-100">Reviewed</span>
+  ) : (
+    <span className="rounded-full bg-yellow-500/20 px-3 py-1 text-xs font-semibold text-yellow-100">Unreviewed</span>
+  )
+}
+
+function ConfidenceBadge({ confidence }: { confidence?: string | null }) {
+  return (
+    <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted">
+      Confidence: {formatConfidence(confidence)}
+    </span>
+  )
+}
+
+function BulkWorkflowBar({
+  selectedCount,
+  isPending,
+  error,
+  onClear,
+  onMarkReviewed,
+  onMarkUnreviewed,
+  onSetConfidence,
+}: {
+  selectedCount: number
+  isPending: boolean
+  error: string | null
+  onClear: () => void
+  onMarkReviewed: () => void
+  onMarkUnreviewed: () => void
+  onSetConfidence: (confidence: ConfidenceValue) => void
+}) {
+  const disabled = selectedCount === 0 || isPending
+
+  return (
+    <div className="mb-4 rounded-2xl border border-border bg-surface p-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted" aria-live="polite">
+            {selectedCount} selected for bulk workflow
+          </p>
+          <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={onClear} disabled={selectedCount === 0 || isPending}>
+            Clear selection
+          </button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={onMarkReviewed} disabled={disabled}>
+            {isPending ? 'Updating...' : 'Mark reviewed'}
+          </button>
+          <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={onMarkUnreviewed} disabled={disabled}>
+            Mark unreviewed
+          </button>
+        </div>
+        <label className="block">
+          <span className="label">Bulk confidence</span>
+          <select
+            className="input"
+            defaultValue=""
+            disabled={disabled}
+            onChange={(changeEvent) => {
+              const value = changeEvent.target.value
+              if (value) {
+                onSetConfidence(value as ConfidenceValue)
+                changeEvent.target.value = ''
+              }
+            }}
+          >
+            <option value="">Set confidence...</option>
+            {CONFIDENCE_OPTIONS.map((confidence) => (
+              <option key={confidence} value={confidence}>
+                {formatConfidence(confidence)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
+      </div>
     </div>
   )
 }

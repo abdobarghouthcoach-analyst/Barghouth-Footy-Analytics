@@ -7,6 +7,8 @@ from app.domain.football.rules.types import DerivedFootballFact, FootballRuleRes
 from app.domain.football.statistics.types import (
     MatchStatistic,
     MatchStatisticsSummary,
+    PlayerStatistic,
+    PlayerStatisticsSummary,
     StatisticExplanation,
     StatisticName,
     TeamStatistic,
@@ -103,6 +105,61 @@ class TeamStatisticsCalculator:
         return TeamStatisticsSummary(statistics=tuple(statistics))
 
 
+@dataclass(frozen=True)
+class PlayerStatisticsCalculator:
+    rules_engine: FootballRulesEngine
+
+    @classmethod
+    def with_default_rules(cls) -> "PlayerStatisticsCalculator":
+        return cls(rules_engine=FootballRulesEngine.with_default_rules())
+
+    def calculate(self, events: Iterable[ProviderNeutralEvent]) -> PlayerStatisticsSummary:
+        return self.calculate_from_rule_results(self.rules_engine.apply(events))
+
+    def calculate_from_rule_results(self, rule_results: Iterable[FootballRuleResult]) -> PlayerStatisticsSummary:
+        facts = tuple(fact for result in rule_results for fact in result.facts if fact.value is True)
+        player_ids = _player_ids(facts)
+        statistics: list[PlayerStatistic] = []
+        for player_id in player_ids:
+            player_facts = tuple(fact for fact in facts if _player_id(fact) == player_id)
+            for name, predicate in _player_statistic_predicates():
+                contributing_facts = tuple(fact for fact in player_facts if predicate(fact))
+                statistics.append(
+                    PlayerStatistic(
+                        player_id=player_id,
+                        name=name,
+                        value=len(contributing_facts),
+                        explanation=_statistic_explanation(
+                            name=name,
+                            facts=contributing_facts,
+                            derivation_scope="player",
+                            player_id=player_id,
+                        ),
+                    )
+                )
+
+            assist_facts = tuple(
+                fact
+                for fact in facts
+                if fact.category == FactCategory.GOAL and _assist_player_id(fact) == player_id
+            )
+            if assist_facts:
+                statistics.append(
+                    PlayerStatistic(
+                        player_id=player_id,
+                        name=StatisticName.ASSISTS,
+                        value=len(assist_facts),
+                        explanation=_statistic_explanation(
+                            name=StatisticName.ASSISTS,
+                            facts=assist_facts,
+                            derivation_scope="player",
+                            player_id=player_id,
+                        ),
+                    )
+                )
+        return PlayerStatisticsSummary(statistics=tuple(statistics))
+
+
 def _statistic_predicates() -> tuple[tuple[StatisticName, FactPredicate], ...]:
     return (
         (StatisticName.GOALS, lambda fact: fact.category == FactCategory.GOAL),
@@ -125,12 +182,28 @@ def _statistic_predicates() -> tuple[tuple[StatisticName, FactPredicate], ...]:
     )
 
 
+def _player_statistic_predicates() -> tuple[tuple[StatisticName, FactPredicate], ...]:
+    return (
+        (StatisticName.GOALS, lambda fact: fact.category == FactCategory.GOAL),
+        (StatisticName.SHOTS, lambda fact: fact.category == FactCategory.SHOT),
+        (
+            StatisticName.YELLOW_CARDS,
+            lambda fact: fact.category == FactCategory.CARD and _normalized_event_type(fact) == "yellow_card",
+        ),
+        (
+            StatisticName.RED_CARDS,
+            lambda fact: fact.category == FactCategory.CARD and _normalized_event_type(fact) == "red_card",
+        ),
+    )
+
+
 def _statistic_explanation(
     *,
     name: StatisticName,
     facts: tuple[DerivedFootballFact, ...],
     derivation_scope: str,
     team_id: str | None = None,
+    player_id: str | None = None,
 ) -> StatisticExplanation:
     event_ids = tuple(fact.event_id for fact in facts)
     fact_refs = tuple(_fact_ref(fact) for fact in facts)
@@ -144,6 +217,14 @@ def _statistic_explanation(
             "football_rules_engine",
             "filter_team_attributed_facts",
             f"team:{team_id}",
+            f"statistic:{name.value}",
+        )
+    elif player_id is not None:
+        reason = f"{name.value} for player {player_id} is derived by counting matching player-attributed football facts."
+        derivation_path = (
+            "football_rules_engine",
+            "filter_player_attributed_facts",
+            f"player:{player_id}",
             f"statistic:{name.value}",
         )
     elif derivation_scope != "match":
@@ -168,8 +249,27 @@ def _team_id(fact: DerivedFootballFact) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
+def _player_id(fact: DerivedFootballFact) -> str | None:
+    value = fact.attributes.get("player_id")
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _assist_player_id(fact: DerivedFootballFact) -> str | None:
+    value = fact.attributes.get("assist_player_id")
+    return value if isinstance(value, str) and value.strip() else None
+
+
 def _team_ids(facts: tuple[DerivedFootballFact, ...]) -> tuple[str, ...]:
     return _unique(team_id for fact in facts if (team_id := _team_id(fact)) is not None)
+
+
+def _player_ids(facts: tuple[DerivedFootballFact, ...]) -> tuple[str, ...]:
+    return _unique(
+        player_id
+        for fact in facts
+        for player_id in (_player_id(fact), _assist_player_id(fact))
+        if player_id is not None
+    )
 
 
 def _fact_ref(fact: DerivedFootballFact) -> str:

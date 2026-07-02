@@ -8,6 +8,7 @@ class ProviderNeutralEvent:
     event_type: str | None
     team_id: str | None = None
     player_id: str | None = None
+    assist_player_id: str | None = None
     period: str | None = None
     minute: int | None = None
     second: int | None = None
@@ -28,4 +29,11 @@ def normalize_team_id(team_id: str | None) -> str | None:
     if team_id is None:
         return None
     normalized = str(team_id).strip()
+    return normalized or None
+
+
+def normalize_player_id(player_id: str | None) -> str | None:
+    if player_id is None:
+        return None
+    normalized = str(player_id).strip()
     return normalized or None

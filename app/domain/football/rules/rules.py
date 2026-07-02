@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.domain.football.rules.event_facts import ProviderNeutralEvent, normalize_event_type, normalize_team_id
+from app.domain.football.rules.event_facts import ProviderNeutralEvent, normalize_event_type, normalize_player_id, normalize_team_id
 from app.domain.football.rules.types import DerivedFootballFact, FactCategory, FootballRuleResult, RuleExplanation
 
 
@@ -21,10 +21,26 @@ class EventTypeRecognitionRule:
                 continue
             if event_type not in self.recognized_event_types:
                 continue
-            facts.append(self._fact(event_id=event_id, event_type=event_type, team_id=normalize_team_id(event.team_id)))
+            facts.append(
+                self._fact(
+                    event_id=event_id,
+                    event_type=event_type,
+                    team_id=normalize_team_id(event.team_id),
+                    player_id=normalize_player_id(event.player_id),
+                    assist_player_id=normalize_player_id(event.assist_player_id),
+                )
+            )
         return FootballRuleResult(rule_id=self.rule_id, rule_name=self.rule_name, facts=tuple(facts))
 
-    def _fact(self, *, event_id: str, event_type: str, team_id: str | None) -> DerivedFootballFact:
+    def _fact(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        team_id: str | None,
+        player_id: str | None,
+        assist_player_id: str | None,
+    ) -> DerivedFootballFact:
         explanation = RuleExplanation(
             rule_id=self.rule_id,
             rule_name=self.rule_name,
@@ -35,6 +51,10 @@ class EventTypeRecognitionRule:
         attributes = {"normalized_event_type": event_type}
         if team_id is not None:
             attributes["team_id"] = team_id
+        if player_id is not None:
+            attributes["player_id"] = player_id
+        if assist_player_id is not None:
+            attributes["assist_player_id"] = assist_player_id
         return DerivedFootballFact(
             category=self.category,
             event_id=event_id,

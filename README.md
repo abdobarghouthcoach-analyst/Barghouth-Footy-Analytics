@@ -164,6 +164,14 @@ Team-level calculations group rule-derived facts by normalized event `team_id`. 
 
 Each team statistic includes the team ID, statistic name, value, contributing events, fact references, rule identity, and a derivation path/reason.
 
+## M4.4 Player Statistics Foundation
+
+Player statistics are derived from rule facts only when normalized `player_id` attribution exists.
+
+The player statistics foundation supports goals, assists, shots, yellow cards, and red cards. Assists require explicit `assist_player_id` attribution on the provider-neutral event; they are not inferred from event sequence or timing.
+
+Events without reliable player attribution are excluded from player statistics rather than guessed.
+
 ## Current Analyst Workflow
 
 ```text

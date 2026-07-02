@@ -4,6 +4,7 @@ from enum import Enum
 
 class StatisticName(str, Enum):
     GOALS = "goals"
+    ASSISTS = "assists"
     SHOTS = "shots"
     SHOTS_ON_TARGET = "shots_on_target"
     CORNERS = "corners"
@@ -53,5 +54,24 @@ class TeamStatisticsSummary:
     def get(self, team_id: str, name: StatisticName) -> TeamStatistic | None:
         return next(
             (statistic for statistic in self.statistics if statistic.team_id == team_id and statistic.name == name),
+            None,
+        )
+
+
+@dataclass(frozen=True)
+class PlayerStatistic:
+    player_id: str
+    name: StatisticName
+    value: int
+    explanation: StatisticExplanation
+
+
+@dataclass(frozen=True)
+class PlayerStatisticsSummary:
+    statistics: tuple[PlayerStatistic, ...]
+
+    def get(self, player_id: str, name: StatisticName) -> PlayerStatistic | None:
+        return next(
+            (statistic for statistic in self.statistics if statistic.player_id == player_id and statistic.name == name),
             None,
         )

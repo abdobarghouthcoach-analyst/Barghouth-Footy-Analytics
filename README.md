@@ -180,6 +180,19 @@ Each explanation includes statistic name, value, scope, optional team/player IDs
 
 The explanation helpers are domain-only and intended for future API/UI use; they do not persist statistics or introduce provider-specific logic.
 
+## M4.6 Statistics API Read Model
+
+Read-only statistics endpoints compute derived statistics from canonical Events on request:
+
+```text
+GET /api/v1/matches/{match_id}/statistics
+GET /api/v1/matches/{match_id}/statistics/teams
+GET /api/v1/matches/{match_id}/statistics/players
+GET /api/v1/matches/{match_id}/statistics/explain
+```
+
+The API layer converts database Events into provider-neutral football DTOs before calling the domain calculators. Statistics are not cached or persisted as database truth.
+
 ## Current Analyst Workflow
 
 ```text

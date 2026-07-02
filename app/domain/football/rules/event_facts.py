@@ -22,3 +22,10 @@ def normalize_event_type(event_type: str | None) -> str | None:
     while "__" in normalized:
         normalized = normalized.replace("__", "_")
     return normalized or None
+
+
+def normalize_team_id(team_id: str | None) -> str | None:
+    if team_id is None:
+        return None
+    normalized = str(team_id).strip()
+    return normalized or None

@@ -156,6 +156,14 @@ Statistics are reproducible calculations, not canonical stored data. Each statis
 
 Shots on target and card color counts are conservative: they are counted only when the provider-neutral event type has already been normalised clearly enough to support the statistic.
 
+## M4.3 Team Statistics
+
+Team statistics are derived in the same statistics domain layer.
+
+Team-level calculations group rule-derived facts by normalized event `team_id`. Events without reliable team attribution are excluded from team statistics rather than guessed.
+
+Each team statistic includes the team ID, statistic name, value, contributing events, fact references, rule identity, and a derivation path/reason.
+
 ## Current Analyst Workflow
 
 ```text

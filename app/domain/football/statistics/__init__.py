@@ -1,5 +1,12 @@
-from app.domain.football.statistics.calculator import MatchStatisticsCalculator
-from app.domain.football.statistics.types import MatchStatistic, MatchStatisticsSummary, StatisticExplanation, StatisticName
+from app.domain.football.statistics.calculator import MatchStatisticsCalculator, TeamStatisticsCalculator
+from app.domain.football.statistics.types import (
+    MatchStatistic,
+    MatchStatisticsSummary,
+    StatisticExplanation,
+    StatisticName,
+    TeamStatistic,
+    TeamStatisticsSummary,
+)
 
 __all__ = [
     "MatchStatistic",
@@ -7,4 +14,7 @@ __all__ = [
     "MatchStatisticsSummary",
     "StatisticExplanation",
     "StatisticName",
+    "TeamStatistic",
+    "TeamStatisticsCalculator",
+    "TeamStatisticsSummary",
 ]

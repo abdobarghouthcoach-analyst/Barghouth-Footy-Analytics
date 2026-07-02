@@ -36,3 +36,22 @@ class MatchStatisticsSummary:
 
     def get(self, name: StatisticName) -> MatchStatistic | None:
         return next((statistic for statistic in self.statistics if statistic.name == name), None)
+
+
+@dataclass(frozen=True)
+class TeamStatistic:
+    team_id: str
+    name: StatisticName
+    value: int
+    explanation: StatisticExplanation
+
+
+@dataclass(frozen=True)
+class TeamStatisticsSummary:
+    statistics: tuple[TeamStatistic, ...]
+
+    def get(self, team_id: str, name: StatisticName) -> TeamStatistic | None:
+        return next(
+            (statistic for statistic in self.statistics if statistic.team_id == team_id and statistic.name == name),
+            None,
+        )

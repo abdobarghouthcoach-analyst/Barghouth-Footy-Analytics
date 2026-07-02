@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.domain.football.rules.event_facts import ProviderNeutralEvent, normalize_event_type
+from app.domain.football.rules.event_facts import ProviderNeutralEvent, normalize_event_type, normalize_team_id
 from app.domain.football.rules.types import DerivedFootballFact, FactCategory, FootballRuleResult, RuleExplanation
 
 
@@ -21,10 +21,10 @@ class EventTypeRecognitionRule:
                 continue
             if event_type not in self.recognized_event_types:
                 continue
-            facts.append(self._fact(event_id=event_id, event_type=event_type))
+            facts.append(self._fact(event_id=event_id, event_type=event_type, team_id=normalize_team_id(event.team_id)))
         return FootballRuleResult(rule_id=self.rule_id, rule_name=self.rule_name, facts=tuple(facts))
 
-    def _fact(self, *, event_id: str, event_type: str) -> DerivedFootballFact:
+    def _fact(self, *, event_id: str, event_type: str, team_id: str | None) -> DerivedFootballFact:
         explanation = RuleExplanation(
             rule_id=self.rule_id,
             rule_name=self.rule_name,
@@ -32,12 +32,15 @@ class EventTypeRecognitionRule:
             reason=f"Event type '{event_type}' is recognised as {self.category.value}.",
             derivation_path=("normalize_event_type", f"match:{event_type}", f"fact:{self.category.value}"),
         )
+        attributes = {"normalized_event_type": event_type}
+        if team_id is not None:
+            attributes["team_id"] = team_id
         return DerivedFootballFact(
             category=self.category,
             event_id=event_id,
             value=True,
             explanation=explanation,
-            attributes={"normalized_event_type": event_type},
+            attributes=attributes,
         )
 
 

@@ -84,6 +84,69 @@ export type MatchVideoClip = {
   updated_at: string
 }
 
+export type StatisticName =
+  | 'goals'
+  | 'assists'
+  | 'shots'
+  | 'shots_on_target'
+  | 'corners'
+  | 'fouls'
+  | 'offsides'
+  | 'yellow_cards'
+  | 'red_cards'
+
+export type StatisticScope = 'match' | 'team' | 'player'
+
+export type StatisticExplanation = {
+  statistic_name: StatisticName
+  value: number
+  scope: StatisticScope
+  team_id?: string | null
+  player_id?: string | null
+  contributing_event_ids: string[]
+  contributing_fact_refs: string[]
+  rule_ids: string[]
+  rule_names: string[]
+  reason: string
+  derivation_path: string[]
+  incomplete_attribution_notes: string[]
+}
+
+export type MatchStatistic = {
+  name: StatisticName
+  value: number
+  explanation: StatisticExplanation
+}
+
+export type TeamStatistic = {
+  team_id: string
+  name: StatisticName
+  value: number
+  explanation: StatisticExplanation
+}
+
+export type PlayerStatistic = {
+  player_id: string
+  name: StatisticName
+  value: number
+  explanation: StatisticExplanation
+}
+
+export type MatchStatisticsResponse = {
+  match_id: string
+  statistics: MatchStatistic[]
+}
+
+export type TeamStatisticsResponse = {
+  match_id: string
+  statistics: TeamStatistic[]
+}
+
+export type PlayerStatisticsResponse = {
+  match_id: string
+  statistics: PlayerStatistic[]
+}
+
 export type CreateEventPayload = {
   match_id: string
   team_id: string
@@ -227,6 +290,18 @@ export async function getEvents(matchId: string): Promise<Event[]> {
 
 export async function getMatchVideoClips(matchId: string): Promise<MatchVideoClip[]> {
   return fetcher(`/matches/${matchId}/video-clips`)
+}
+
+export async function getMatchStatistics(matchId: string): Promise<MatchStatisticsResponse> {
+  return fetcher(`/matches/${matchId}/statistics`)
+}
+
+export async function getTeamStatistics(matchId: string): Promise<TeamStatisticsResponse> {
+  return fetcher(`/matches/${matchId}/statistics/teams`)
+}
+
+export async function getPlayerStatistics(matchId: string): Promise<PlayerStatisticsResponse> {
+  return fetcher(`/matches/${matchId}/statistics/players`)
 }
 
 export function getVideoClipStreamUrl(clipId: string): string {

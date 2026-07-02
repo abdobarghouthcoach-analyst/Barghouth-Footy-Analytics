@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
@@ -8,7 +8,10 @@ import {
   getEvents,
   getMatch,
   getMatchImports,
+  getMatchStatistics,
   getMatchVideoClips,
+  getPlayerStatistics,
+  getTeamStatistics,
   getVideoClipStreamUrl,
   getTeams,
   updateEvent,
@@ -18,7 +21,11 @@ import {
   ImportJob,
   Match,
   MatchVideoClip,
+  PlayerStatistic,
+  StatisticExplanation,
+  StatisticName,
   Team,
+  TeamStatistic,
   UpdateEventPayload,
 } from '../lib/api'
 
@@ -71,7 +78,7 @@ export function MatchWorkspacePage() {
 
   const home = match ? teamMap.get(match.home_team_id) : undefined
   const away = match ? teamMap.get(match.away_team_id) : undefined
-  const tabs = ['Overview', 'Import', 'Events', 'Analysis', 'Report']
+  const tabs = ['Overview', 'Import', 'Events', 'Statistics', 'Analysis', 'Report']
 
   return (
     <section className="space-y-6">
@@ -103,7 +110,7 @@ export function MatchWorkspacePage() {
         </div>
 
         <div className="mt-6 border-b border-border">
-          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             {tabs.map((tab) => (
               <button
                 key={tab}
@@ -120,9 +127,10 @@ export function MatchWorkspacePage() {
 
         <div className="mt-6">
           {isLoading && <WorkspaceLoadingState label="Loading match workspace..." />}
-          {!isLoading && active !== 'Events' && active !== 'Import' && <TabContent tab={active} match={match ?? null} />}
+          {!isLoading && active !== 'Events' && active !== 'Import' && active !== 'Statistics' && <TabContent tab={active} match={match ?? null} />}
           {!isLoading && active === 'Import' && <ImportTab matchId={matchId} onOpenEvents={() => setActive('Events')} />}
           {!isLoading && active === 'Events' && match && <TimelineTab match={match} teams={teams} />}
+          {!isLoading && active === 'Statistics' && <StatisticsTab matchId={matchId} teams={teams} />}
         </div>
       </div>
     </section>
@@ -400,6 +408,334 @@ function formatFileSize(bytes: number) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
+}
+
+const MATCH_STAT_ORDER: StatisticName[] = ['goals', 'shots', 'shots_on_target', 'corners', 'fouls', 'offsides', 'yellow_cards', 'red_cards']
+const PLAYER_STAT_ORDER: StatisticName[] = ['goals', 'assists', 'shots', 'yellow_cards', 'red_cards']
+
+type SelectedStatisticExplanation = {
+  title: string
+  context: string
+  explanation: StatisticExplanation
+}
+
+function StatisticsTab({ matchId, teams }: { matchId: string; teams: Team[] }) {
+  const [selectedExplanation, setSelectedExplanation] = useState<SelectedStatisticExplanation | null>(null)
+  const teamNames = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams])
+  const matchStatsQuery = useQuery({
+    queryKey: ['matches', matchId, 'statistics'],
+    queryFn: () => getMatchStatistics(matchId),
+    enabled: !!matchId,
+  })
+  const teamStatsQuery = useQuery({
+    queryKey: ['matches', matchId, 'statistics', 'teams'],
+    queryFn: () => getTeamStatistics(matchId),
+    enabled: !!matchId,
+  })
+  const playerStatsQuery = useQuery({
+    queryKey: ['matches', matchId, 'statistics', 'players'],
+    queryFn: () => getPlayerStatistics(matchId),
+    enabled: !!matchId,
+  })
+
+  const isLoading = matchStatsQuery.isLoading || teamStatsQuery.isLoading || playerStatsQuery.isLoading
+  const error = matchStatsQuery.error ?? teamStatsQuery.error ?? playerStatsQuery.error
+  const matchStatistics = matchStatsQuery.data?.statistics ?? []
+  const teamStatistics = teamStatsQuery.data?.statistics ?? []
+  const playerStatistics = playerStatsQuery.data?.statistics ?? []
+  const hasAnyStatistics = matchStatistics.length > 0 || teamStatistics.length > 0 || playerStatistics.length > 0
+  const groupedTeamStatistics = useMemo(() => groupTeamStatistics(teamStatistics), [teamStatistics])
+  const groupedPlayerStatistics = useMemo(() => groupPlayerStatistics(playerStatistics), [playerStatistics])
+
+  if (isLoading) {
+    return <StatisticsLoadingState />
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">
+        <p className="font-semibold text-white">Statistics could not be loaded.</p>
+        <p className="mt-2">{error instanceof Error ? error.message : 'The statistics API returned an unexpected error.'}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="space-y-4">
+        <div className="rounded-3xl border border-border bg-surface3 p-5">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Derived from Events</p>
+          <h3 className="mt-2 text-xl font-semibold text-white">Statistics</h3>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            These numbers are calculated by the Football Rules Engine from canonical match events. They are not stored as match truth.
+          </p>
+        </div>
+
+        {!hasAnyStatistics && (
+          <div className="rounded-3xl border border-border bg-surface3 p-8 text-center text-muted">
+            <p className="text-lg font-semibold text-white">No derived statistics yet.</p>
+            <p className="mt-2">Import or add events first, then return here to review match, team, and player statistics.</p>
+          </div>
+        )}
+
+        <StatisticSection title="Match statistics" description="Match-level facts derived from all available events.">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {MATCH_STAT_ORDER.map((name) => {
+              const statistic = matchStatistics.find((item) => item.name === name)
+              return (
+                <StatisticCard
+                  key={name}
+                  label={formatStatisticName(name)}
+                  value={statistic?.value}
+                  emptyLabel="Not derived"
+                  onExplain={
+                    statistic
+                      ? () => setSelectedExplanation({ title: formatStatisticName(name), context: 'Match statistic', explanation: statistic.explanation })
+                      : undefined
+                  }
+                />
+              )
+            })}
+          </div>
+        </StatisticSection>
+
+        <StatisticSection title="Team statistics" description="Team-level statistics only include events with reliable team attribution.">
+          {groupedTeamStatistics.length === 0 ? (
+            <StatisticsEmptyState message="No team statistics were derived. Events without team attribution are intentionally excluded." />
+          ) : (
+            <div className="space-y-3">
+              {groupedTeamStatistics.map((group) => (
+                <div key={group.teamId} className="rounded-3xl border border-border bg-surface p-4">
+                  <h5 className="font-semibold text-white">{teamNames.get(group.teamId) ?? group.teamId}</h5>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {MATCH_STAT_ORDER.map((name) => {
+                      const statistic = group.statistics.find((item) => item.name === name)
+                      return (
+                        <StatisticCard
+                          key={`${group.teamId}-${name}`}
+                          label={formatStatisticName(name)}
+                          value={statistic?.value}
+                          emptyLabel="Not derived"
+                          onExplain={
+                            statistic
+                              ? () =>
+                                  setSelectedExplanation({
+                                    title: formatStatisticName(name),
+                                    context: teamNames.get(group.teamId) ?? group.teamId,
+                                    explanation: statistic.explanation,
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatisticSection>
+
+        <StatisticSection title="Player statistics" description="Player statistics only appear where event player attribution is reliable.">
+          {groupedPlayerStatistics.length === 0 ? (
+            <StatisticsEmptyState message="No player statistics were derived from the current events." />
+          ) : (
+            <div className="space-y-3">
+              {groupedPlayerStatistics.map((group) => (
+                <div key={group.playerId} className="rounded-3xl border border-border bg-surface p-4">
+                  <h5 className="font-semibold text-white">Player {shortId(group.playerId)}</h5>
+                  <p className="mt-1 break-all text-xs text-muted">{group.playerId}</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    {PLAYER_STAT_ORDER.map((name) => {
+                      const statistic = group.statistics.find((item) => item.name === name)
+                      return (
+                        <StatisticCard
+                          key={`${group.playerId}-${name}`}
+                          label={formatStatisticName(name)}
+                          value={statistic?.value}
+                          emptyLabel="Not derived"
+                          onExplain={
+                            statistic
+                              ? () =>
+                                  setSelectedExplanation({
+                                    title: formatStatisticName(name),
+                                    context: `Player ${shortId(group.playerId)}`,
+                                    explanation: statistic.explanation,
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </StatisticSection>
+      </section>
+
+      <StatisticExplanationPanel selected={selectedExplanation} onClear={() => setSelectedExplanation(null)} />
+    </div>
+  )
+}
+
+function StatisticSection({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-border bg-surface3 p-5">
+      <div className="mb-4">
+        <h4 className="text-lg font-semibold text-white">{title}</h4>
+        <p className="mt-1 text-sm text-muted">{description}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function StatisticCard({
+  label,
+  value,
+  emptyLabel,
+  onExplain,
+}: {
+  label: string
+  value?: number
+  emptyLabel: string
+  onExplain?: () => void
+}) {
+  const hasValue = typeof value === 'number'
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{hasValue ? value : '-'}</p>
+      <p className="mt-1 text-xs text-muted">{hasValue ? 'API-derived' : emptyLabel}</p>
+      <button type="button" className="btn-secondary mt-3 w-full px-3 py-2 text-sm" onClick={onExplain} disabled={!onExplain}>
+        View explanation
+      </button>
+    </div>
+  )
+}
+
+function StatisticExplanationPanel({
+  selected,
+  onClear,
+}: {
+  selected: SelectedStatisticExplanation | null
+  onClear: () => void
+}) {
+  if (!selected) {
+    return (
+      <aside className="rounded-3xl border border-border bg-surface3 p-5 text-sm text-muted xl:sticky xl:top-4 xl:self-start">
+        <p className="text-xs uppercase tracking-[0.2em] text-muted">Explainability</p>
+        <p className="mt-3 font-semibold text-white">No statistic selected</p>
+        <p className="mt-1">Use View explanation on any derived statistic to inspect contributing events and rule identity.</p>
+      </aside>
+    )
+  }
+
+  const explanation = selected.explanation
+  return (
+    <aside className="rounded-3xl border border-border bg-surface3 p-5 xl:sticky xl:top-4 xl:self-start">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Explainability</p>
+          <h4 className="mt-2 text-lg font-semibold text-white">{selected.title}</h4>
+          <p className="mt-1 text-sm text-muted">{selected.context}</p>
+        </div>
+        <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={onClear}>
+          Clear
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-4 text-sm">
+        <DetailRow label="Value" value={String(explanation.value)} />
+        <DetailRow label="Scope" value={formatStatisticName(explanation.scope)} />
+        <DetailRow label="Reason" value={explanation.reason} />
+
+        <ExplanationList label="Contributing event IDs" values={explanation.contributing_event_ids} />
+        <ExplanationList label="Rule IDs" values={explanation.rule_ids} />
+        <ExplanationList label="Rule names" values={explanation.rule_names} />
+        <ExplanationList label="Derivation path" values={explanation.derivation_path} />
+        <ExplanationList label="Attribution notes" values={explanation.incomplete_attribution_notes} />
+      </div>
+    </aside>
+  )
+}
+
+function ExplanationList({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-[0.2em] text-muted">{label}</p>
+      {values.length === 0 ? (
+        <p className="mt-1 text-muted">None reported</p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {values.map((value, index) => (
+            <li key={`${label}-${value}-${index}`} className="break-words rounded-2xl border border-border bg-surface p-3 text-white">
+              {value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function StatisticsEmptyState({ message }: { message: string }) {
+  return <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">{message}</div>
+}
+
+function StatisticsLoadingState() {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-4">
+        <WorkspaceLoadingState label="Loading derived statistics..." />
+        <div className="rounded-3xl border border-border bg-surface3 p-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="h-32 rounded-2xl skeleton" />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="rounded-3xl border border-border bg-surface3 p-5">
+        <div className="h-5 w-32 rounded-full skeleton" />
+        <div className="mt-4 space-y-3">
+          <div className="h-4 rounded-full skeleton" />
+          <div className="h-4 rounded-full skeleton" />
+          <div className="h-4 rounded-full skeleton" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function groupTeamStatistics(statistics: TeamStatistic[]) {
+  const groups = new Map<string, TeamStatistic[]>()
+  statistics.forEach((statistic) => {
+    groups.set(statistic.team_id, [...(groups.get(statistic.team_id) ?? []), statistic])
+  })
+  return Array.from(groups.entries())
+    .map(([teamId, items]) => ({ teamId, statistics: items }))
+    .sort((first, second) => first.teamId.localeCompare(second.teamId))
+}
+
+function groupPlayerStatistics(statistics: PlayerStatistic[]) {
+  const groups = new Map<string, PlayerStatistic[]>()
+  statistics.forEach((statistic) => {
+    groups.set(statistic.player_id, [...(groups.get(statistic.player_id) ?? []), statistic])
+  })
+  return Array.from(groups.entries())
+    .map(([playerId, items]) => ({ playerId, statistics: items }))
+    .sort((first, second) => first.playerId.localeCompare(second.playerId))
+}
+
+function shortId(value: string) {
+  return value.length > 8 ? value.slice(0, 8) : value
+}
+
+function formatStatisticName(name: string) {
+  return formatEventName(name)
 }
 
 function formatEventName(eventType: string) {

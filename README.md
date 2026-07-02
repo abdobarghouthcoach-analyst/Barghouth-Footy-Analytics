@@ -138,6 +138,24 @@ Every derived fact includes:
 
 Statistics will be derived later from Events and rule facts. Events remain the source of truth; statistics are not stored as canonical football truth.
 
+## M4.2 Match Statistics
+
+The match statistics layer lives in `app/domain/football/statistics/`.
+
+It derives match-level statistics from Football Rules Engine facts:
+- goals
+- shots
+- shots on target
+- corners
+- fouls
+- offsides
+- yellow cards
+- red cards
+
+Statistics are reproducible calculations, not canonical stored data. Each statistic includes contributing event IDs, fact references, rule identity, and a derivation reason/path.
+
+Shots on target and card color counts are conservative: they are counted only when the provider-neutral event type has already been normalised clearly enough to support the statistic.
+
 ## Current Analyst Workflow
 
 ```text

@@ -119,6 +119,25 @@ Event review workflow is explicit and separate from event correction:
 
 `edited_at` records correction edits only. It is not used as review state.
 
+## M4.1 Football Rules Engine
+
+The Football Rules Engine lives in `app/domain/football/rules/`.
+
+Its purpose is to interpret canonical provider-neutral Events and produce explainable derived football facts. It does not calculate or store match statistics yet.
+
+Rules must remain pure and deterministic:
+- no FastAPI routes
+- no SQLAlchemy ORM models or database sessions
+- no provider adapters
+- no frontend code
+
+Every derived fact includes:
+- contributing event IDs
+- rule ID and rule name
+- derivation path and reason
+
+Statistics will be derived later from Events and rule facts. Events remain the source of truth; statistics are not stored as canonical football truth.
+
 ## Current Analyst Workflow
 
 ```text
